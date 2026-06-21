@@ -40,6 +40,31 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
             </div>
           ))}
         </div>
+        {data.variantStats?.length > 0 && (
+          <div className="card p-5">
+            <div className="font-semibold mb-4">A/B 测试结果 <span className="text-xs text-ink3 font-normal">点击率 = 点击 / 发送，绿色为当前领先</span></div>
+            <div className="space-y-3">
+              {data.variantStats.map((v: any) => {
+                const win = v.id === data.winnerId;
+                const ctr = Math.round(v.ctr * 100);
+                return (
+                  <div key={v.id} className="flex items-center gap-3">
+                    <span className={`w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center shrink-0 ${win ? "bg-ok text-white" : "bg-primary/10 text-primary"}`}>{v.label}</span>
+                    <div className="w-40 shrink-0">
+                      <div className="text-sm font-medium truncate">{v.template}</div>
+                      <div className="text-xs text-ink3">发送 {v.sent} · 点击 {v.visited}</div>
+                    </div>
+                    <div className="flex-1 bg-gray-100 rounded h-7 overflow-hidden">
+                      <div className={`h-full rounded flex items-center px-2 text-white text-xs font-medium transition-all ${win ? "bg-ok" : "bg-primary"}`}
+                        style={{ width: `${Math.max(ctr, ctr ? 8 : 0)}%` }}>{ctr}%</div>
+                    </div>
+                    {win && <span className="tag bg-green-50 text-ok shrink-0">领先</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="card p-5">
           <div className="font-semibold mb-4">转化漏斗</div>
           <div className="space-y-2.5">

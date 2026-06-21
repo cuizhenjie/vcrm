@@ -48,6 +48,7 @@ model SmsTemplate {
   reportStatus String   @default("draft") // draft | pending | approved | rejected
   createdAt    DateTime @default(now())
   campaigns    Campaign[]
+  variants     CampaignVariant[]
 }
 
 /// 短链（访问追踪）
@@ -75,6 +76,7 @@ model Campaign {
   createdBy   String?
   createdAt   DateTime @default(now())
   recipients  Recipient[]
+  variants    CampaignVariant[]
 }
 
 /// 任务-号码明细
@@ -84,6 +86,8 @@ model Recipient {
   campaign       Campaign @relation(fields: [campaignId], references: [id])
   customerId     String?
   customer       Customer? @relation(fields: [customerId], references: [id])
+  variantId      String?
+  variant        CampaignVariant? @relation(fields: [variantId], references: [id])
   mobile         String
   extno          String   @unique @default(cuid()) // 业务流水号(全局唯一)，回执/上行回填靠它
   // ⚠ 真实联麓 extno 多为数字扩展号且有长度限制，对接时按文档替换生成规则
@@ -95,6 +99,19 @@ model Recipient {
   remark         String?  // 业务字段 JSON 字符串
   createdAt      DateTime @default(now())
   reports        DeliveryReport[]
+  @@index([campaignId])
+}
+
+/// A/B 测试变体：一个活动可挂多个文案变体，按权重分流
+model CampaignVariant {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  label      String   @default("A")
+  templateId String?
+  template   SmsTemplate? @relation(fields: [templateId], references: [id])
+  weight     Int      @default(1)
+  recipients Recipient[]
   @@index([campaignId])
 }
 

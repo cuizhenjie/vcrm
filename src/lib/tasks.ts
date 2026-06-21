@@ -12,7 +12,7 @@ import { createShortLink } from "./shortlink";
 export async function processCampaign(campaignId: string) {
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
-    include: { template: true },
+    include: { template: true, variants: { include: { template: true } } },
   });
   if (!campaign) return;
 
@@ -22,7 +22,7 @@ export async function processCampaign(campaignId: string) {
 
   const recipients = await db.recipient.findMany({
     where: { campaignId, sendStatus: "pending" },
-    include: { customer: true },
+    include: { customer: true, variant: { include: { template: true } } },
   });
 
   let sent = 0;
@@ -38,18 +38,20 @@ export async function processCampaign(campaignId: string) {
             return;
           }
         }
+        // A/B：优先用收件人所属变体的模板，回退活动默认模板
+        const tplObj = r.variant?.template ?? campaign.template;
         // 千人千面：变量替换 + 每条专属短链注入
-        const tpl = campaign.template?.content ?? "";
+        const tpl = tplObj?.content ?? "";
         const data: Record<string, string> = { name: r.customer?.name ?? "", ...parseVars(r.customer?.vars) };
         if (tpl.includes("{link}")) {
-          const target = campaign.template?.landingUrl || process.env.APP_BASE_URL || "http://localhost:3000";
+          const target = tplObj?.landingUrl || process.env.APP_BASE_URL || "http://localhost:3000";
           const link = await createShortLink(target, r.id); // trackId=r.id → 点击回填 visited
           data.link = link.shortUrl;
         }
         const content = render(tpl, data);
         const res =
           campaign.type === "video_sms"
-            ? await provider.sendMms({ mobile: r.mobile, templateId: campaign.templateId ?? "", extno: r.extno })
+            ? await provider.sendMms({ mobile: r.mobile, templateId: tplObj?.id ?? "", extno: r.extno })
             : campaign.type === "flash"
             ? await provider.sendFlash({ mobile: r.mobile, content, extno: r.extno })
             : await provider.sendText({ mobile: r.mobile, content, extno: r.extno });

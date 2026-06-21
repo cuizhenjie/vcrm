@@ -16,5 +16,17 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     db.recipient.count({ where: { campaignId: params.id, deliveryStatus: "delivered" } }),
     db.recipient.count({ where: { campaignId: params.id, intentTag: "有意向" } }),
   ]);
-  return NextResponse.json({ campaign, intent, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
+  // A/B 各变体表现：点击率 = 点击/发送，标出领先者
+  const variants = await db.campaignVariant.findMany({ where: { campaignId: params.id }, include: { template: true } });
+  const variantStats = await Promise.all(variants.map(async (v) => {
+    const [vsent, vvisited] = await Promise.all([
+      db.recipient.count({ where: { campaignId: params.id, variantId: v.id, sendStatus: "sent" } }),
+      db.recipient.count({ where: { campaignId: params.id, variantId: v.id, visited: true } }),
+    ]);
+    return { id: v.id, label: v.label, template: v.template?.name ?? "—", sent: vsent, visited: vvisited, ctr: vsent ? vvisited / vsent : 0 };
+  }));
+  const best = variantStats.filter((v) => v.sent > 0).sort((a, b) => b.ctr - a.ctr)[0];
+  const winnerId = best && best.ctr > 0 ? best.id : null;
+
+  return NextResponse.json({ campaign, intent, variantStats, winnerId, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
 }
