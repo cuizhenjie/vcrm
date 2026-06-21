@@ -73,6 +73,7 @@ model Campaign {
   total       Int      @default(0)
   valid       Int      @default(0)
   sent        Int      @default(0)
+  quietHours  Boolean  @default(true)  // 避扰时段(夜间不发)
   autoRollout Boolean  @default(false) // 是否自动放量
   testRatio   Int      @default(20)    // 测试流量占比(%)
   rolledOut   Boolean  @default(false) // 是否已放量

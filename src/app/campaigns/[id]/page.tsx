@@ -31,12 +31,20 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
   ];
   return (
     <>
-      <Topbar title={campaign.name} sub="任务详情">
+      <Topbar title={campaign.name} sub={campaign.scheduledAt ? `定时：${new Date(campaign.scheduledAt).toLocaleString("zh-CN")}` : "任务详情"}>
         <Tag s={campaign.status} />
         {["pending", "stopped"].includes(campaign.status) &&
           <button className="btn btn-pri ml-2" onClick={send} disabled={sending}>{sending ? "发送中…" : "开始发送"}</button>}
+        {campaign.status === "scheduled" &&
+          <button className="btn ml-2" onClick={send} disabled={sending}>立即发送</button>}
       </Topbar>
       <div className="p-6 space-y-5">
+        {campaign.status === "scheduled" && (
+          <div className="card p-4 border-l-4 border-l-primary text-sm text-ink2">
+            ⏰ 已排期，将于 <b>{new Date(campaign.scheduledAt).toLocaleString("zh-CN")}</b> 自动发送
+            {campaign.quietHours && <>（避扰时段顺延）</>}。调度器每分钟扫描一次。
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
           {metrics.map((m) => (
             <div key={m.k} className="card p-4">

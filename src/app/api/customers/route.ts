@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const customers = await db.customer.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
   return NextResponse.json(customers);

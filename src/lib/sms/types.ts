@@ -13,4 +13,6 @@ export interface SmsChannelProvider {
   sendMms(req: MmsReq): Promise<SendResult>;
   sendFlash(req: FlashReq): Promise<SendResult>;
   checkNumbers(mobiles: string[]): Promise<CheckResult[]>;
+  queryStatus?(extnos: string[]): Promise<DeliveryReport[]>; // 主动查回执(回调兜底)
+  balance?(): Promise<{ ok: boolean; balance?: number; raw?: unknown }>;
 }

@@ -17,6 +17,10 @@ export const MockProvider: SmsChannelProvider = {
       carrier: rnd(carriers),
     }));
   },
+  async queryStatus(extnos: string[]) {
+    return extnos.map((extno) => ({ extno, status: "delivered" as const }));
+  },
+  async balance() { return { ok: true, balance: 99999 }; },
 };
 const wait = () => new Promise((r) => setTimeout(r, 30));
 const ok = () => ({ ok: Math.random() > 0.03, messageId: "mock_" + Math.random().toString(36).slice(2) });

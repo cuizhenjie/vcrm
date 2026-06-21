@@ -61,3 +61,23 @@ curl -X POST localhost:3000/api/webhooks/mo \
 - ⏭ **Phase 3**：5G 视频外呼（需运营商 5G 视频线路 + SP 资质，联麓通道不覆盖）
 
 > ⚠ 合规硬门槛：发送前必须完成 **签名报备 + 模板报备**；营销短信需含退订方式与频控。
+
+## 新增能力（v0.2）
+
+### 定时发送 + 避扰时段
+- 新建任务可设 `scheduledAt`，未来时间 → 状态 `scheduled`，到点由调度触发
+- 避扰时段（默认 22:00–08:00，`.env` 的 `QUIET_START/END` 可调）内顺延，防投诉封号
+- 调度走标准外部 cron：让平台每分钟调用 `GET /api/cron/tick`（可用 `CRON_SECRET` 头校验）
+  - 本地测试：`while true; do curl -s localhost:3000/api/cron/tick; sleep 60; done`
+  - 生产：Vercel Cron / 系统 crontab / 云函数定时器
+
+### 客户分群圈选
+- 新建任务时按「归属地 / 运营商 / 仅历史有意向客户」筛选人群，实时显示匹配人数
+- `GET /api/customers/facets` 取可选维度；`POST /api/customers/segment` 预览匹配数
+
+### 联麓通道强化
+- `LianluProvider` 端点/签名算法/成功字段全部抽到 `.env`（对接时改配置即可，⚠ 以 api_4_2 文档为准）
+- 新增 `queryStatus`（主动查回执，回调兜底）、`balance`（余额）
+- 通道自检：`GET /api/health/channel` 返回当前通道、配置完整性、余额
+
+> ⚠ 已知 Next.js 坑：读库/读环境的 GET 路由必须 `export const dynamic = "force-dynamic"`，否则被静态预渲染返回构建时快照。
