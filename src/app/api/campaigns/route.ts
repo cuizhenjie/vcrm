@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { buildSegmentWhere } from "@/lib/segment";
+import { retargetCustomerIds } from "@/lib/retarget";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,19 @@ export async function GET() {
 
 // 新建任务：body = { name, type, templateId, batchId? }  从有效客户生成 recipients
 export async function POST(req: NextRequest) {
-  const { name, type, templateId, batchId, variants, autoRollout, testRatio, segment, scheduledAt, quietHours } = await req.json();
+  const { name, type, templateId, batchId, variants, autoRollout, testRatio, segment, scheduledAt, quietHours, source } = await req.json();
   if (!name) return NextResponse.json({ error: "任务名称必填" }, { status: 400 });
 
-  const where = segment ? buildSegmentWhere(segment) : { isBlacklist: false, ...(batchId ? { batchId } : {}) };
-  const customers = await db.customer.findMany({ where });
-  if (customers.length === 0) return NextResponse.json({ error: "该分群下无有效客户" }, { status: 400 });
+  let customers;
+  if (source?.fromCampaignId && source?.audience) {
+    const ids = await retargetCustomerIds(source.fromCampaignId, source.audience);
+    customers = await db.customer.findMany({ where: { id: { in: ids }, isBlacklist: false } });
+    if (customers.length === 0) return NextResponse.json({ error: "该再营销人群为空" }, { status: 400 });
+  } else {
+    const where = segment ? buildSegmentWhere(segment) : { isBlacklist: false, ...(batchId ? { batchId } : {}) };
+    customers = await db.customer.findMany({ where });
+    if (customers.length === 0) return NextResponse.json({ error: "该分群下无有效客户" }, { status: 400 });
+  }
 
   const ratio = Math.min(90, Math.max(5, Number(testRatio) || 20));
   const when = scheduledAt ? new Date(scheduledAt) : null;

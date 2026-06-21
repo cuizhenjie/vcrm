@@ -15,6 +15,21 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
     await fetch(`/api/campaigns/${params.id}/send`, { method: "POST" });
     setTimeout(load, 800);
   };
+  const [rtAudience, setRtAudience] = useState("intent");
+  const [rtTpl, setRtTpl] = useState("");
+  const [tpls, setTpls] = useState<any[]>([]);
+  useEffect(() => { fetch("/api/templates").then((r) => r.json()).then((d) => setTpls(d.filter((t: any) => t.reportStatus === "approved"))); }, []);
+  const retarget = async () => {
+    if (!rtTpl) return alert("请选择再营销文案");
+    setSending(true);
+    const r = await fetch("/api/campaigns", { method: "POST", body: JSON.stringify({
+      name: `${campaign.name}·再营销`, type: "text_sms", templateId: rtTpl,
+      source: { fromCampaignId: params.id, audience: rtAudience },
+    }) }).then((r) => r.json());
+    setSending(false);
+    if (r.error) return alert(r.error);
+    window.location.href = `/campaigns/${r.id}`;
+  };
   const stop = async () => {
     if (!confirm("确定停止该任务？已发送的不可撤回，未发送的将不再发送。")) return;
     setSending(true);
@@ -141,6 +156,32 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
             ))}
           </div>
         </div>
+        {data.audiences && stats.sent > 0 && (
+          <div className="card p-5 border-l-4 border-l-accent">
+            <div className="font-semibold mb-1">再营销 <span className="text-xs text-ink3 font-normal">从本次响应人群圈出温热客户，二次触达提转化</span></div>
+            <div className="grid md:grid-cols-3 gap-2.5 my-3">
+              {Object.entries(data.audiences).map(([key, a]: any) => (
+                <button key={key} onClick={() => setRtAudience(key)}
+                  className={`text-left p-3 rounded-lg border transition ${rtAudience === key ? "border-accent bg-blue-50/50" : "border-line"}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{a.label}</span>
+                    <span className="text-lg font-bold text-accent">{a.count}</span>
+                  </div>
+                  <div className="text-xs text-ink3 mt-0.5">{a.desc}</div>
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <select className="input !w-auto flex-1 min-w-[180px]" value={rtTpl} onChange={(e) => setRtTpl(e.target.value)}>
+                <option value="">选择再营销文案（可换更有针对性的）</option>
+                {tpls.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              <button className="btn btn-pri" onClick={retarget} disabled={sending || !(data.audiences[rtAudience]?.count)}>
+                创建再营销活动（{data.audiences[rtAudience]?.count ?? 0} 人）
+              </button>
+            </div>
+          </div>
+        )}
         <div className="card overflow-hidden">
           <table className="w-full">
             <thead><tr><th className="th">手机号</th><th className="th">流水号</th><th className="th">发送状态</th><th className="th">送达</th><th className="th">短链</th><th className="th">意图标签</th></tr></thead>

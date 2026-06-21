@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { abSignificance } from "@/lib/significance";
+import { audienceCounts } from "@/lib/retarget";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const campaign = await db.campaign.findUnique({
@@ -53,5 +54,6 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       significant: sig.significant, confidence: sig.confidence, reason: sig.reason, minSample: sig.minSample };
   }
 
-  return NextResponse.json({ campaign, intent, variantStats, winnerId, rollout, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
+  const audiences = await audienceCounts(params.id);
+  return NextResponse.json({ campaign, intent, variantStats, winnerId, rollout, audiences, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
 }

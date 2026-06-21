@@ -112,3 +112,8 @@ npm run build && npm start   # 或 npm run dev
 ```
 
 **仅剩对外依赖**：接通真实联麓通道（`LianluProvider` 已配置化，待 api_4_2 文档字段）；其余功能软件侧已完整。
+
+### 再营销（v1.1）
+- 活动详情页一键从响应人群圈人做二次触达：**有意向（热）/ 点击过（温）/ 已触达未点击（冷）**
+- 可换更有针对性的文案，对温热人群投放（转化率远高于冷名单）——「钱在跟进里」
+- `POST /api/campaigns` 传 `source:{fromCampaignId,audience}` 即从源活动结果建跟进活动
