@@ -15,10 +15,10 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
     await fetch(`/api/campaigns/${params.id}/send`, { method: "POST" });
     setTimeout(load, 800);
   };
-  const rollout = async () => {
+  const rollout = async (force = false) => {
     setSending(true);
-    const r = await fetch(`/api/campaigns/${params.id}/rollout`, { method: "POST" }).then((r) => r.json());
-    if (r.error) alert(r.error);
+    const r = await fetch(`/api/campaigns/${params.id}/rollout`, { method: "POST", body: JSON.stringify({ force }) }).then((r) => r.json());
+    if (r.error && !r.canForce) alert(r.error);
     setSending(false); setTimeout(load, 800);
   };
   const rate = (n: number) => (stats.total ? Math.round((n / stats.total) * 100) : 0);
@@ -63,13 +63,24 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
                   测试组 {data.rollout.testSent}/{data.rollout.testTotal} 已发送 · 放量组 {data.rollout.rolloutTotal} 人待投
                   {data.rollout.winnerLabel && <> · 当前赢家 <b className="text-ok">变体 {data.rollout.winnerLabel}</b></>}
                 </div>
+                {data.rollout.reason && (
+                  <div className={`text-xs mt-1 ${data.rollout.significant ? "text-ok" : "text-warn"}`}>
+                    {data.rollout.significant ? "✓ " : "⚠ "}{data.rollout.reason}
+                  </div>
+                )}
               </div>
               {data.campaign.rolledOut ? (
                 <span className="tag bg-green-50 text-ok">已放量赢家文案</span>
               ) : data.rollout.canRollout ? (
-                <button className="btn btn-pri" onClick={rollout} disabled={sending}>
-                  放量到赢家（{data.rollout.rolloutTotal} 人）
-                </button>
+                data.rollout.significant ? (
+                  <button className="btn btn-pri" onClick={() => rollout(false)} disabled={sending}>
+                    放量到赢家（{data.rollout.rolloutTotal} 人）
+                  </button>
+                ) : (
+                  <button className="btn" onClick={() => { if (confirm("差异未达统计显著，仍要放量？可能选中假赢家。")) rollout(true); }} disabled={sending}>
+                    仍要放量（不显著）
+                  </button>
+                )
               ) : (
                 <span className="text-sm text-ink3">测试阶段发送完成后可放量</span>
               )}

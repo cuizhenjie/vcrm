@@ -81,3 +81,8 @@ curl -X POST localhost:3000/api/webhooks/mo \
 - 通道自检：`GET /api/health/channel` 返回当前通道、配置完整性、余额
 
 > ⚠ 已知 Next.js 坑：读库/读环境的 GET 路由必须 `export const dynamic = "force-dynamic"`，否则被静态预渲染返回构建时快照。
+
+### A/B 统计显著性（v0.3）
+- 自动放量前做**双比例 z 检验**：样本不足（每组 < `AB_MIN_SAMPLE`，默认 30）或差异不显著（置信度 < 95%）时**拦截放量**（HTTP 409），避免把整批名单投给小样本「假赢家」
+- 详情页展示置信度与原因；不显著时可人工 `force` 强制放量
+- 纯函数实现（`src/lib/significance.ts`），无第三方依赖
