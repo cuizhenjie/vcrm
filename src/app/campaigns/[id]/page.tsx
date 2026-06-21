@@ -15,6 +15,12 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
     await fetch(`/api/campaigns/${params.id}/send`, { method: "POST" });
     setTimeout(load, 800);
   };
+  const rollout = async () => {
+    setSending(true);
+    const r = await fetch(`/api/campaigns/${params.id}/rollout`, { method: "POST" }).then((r) => r.json());
+    if (r.error) alert(r.error);
+    setSending(false); setTimeout(load, 800);
+  };
   const rate = (n: number) => (stats.total ? Math.round((n / stats.total) * 100) : 0);
   const metrics = [
     { k: "发送成功", v: stats.sent, s: `${rate(stats.sent)}%`, c: "text-ok" },
@@ -40,6 +46,28 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
             </div>
           ))}
         </div>
+        {data.rollout && (
+          <div className="card p-5 border-l-4 border-l-primary">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <div className="font-semibold mb-1">自动放量{data.campaign.rolledOut ? "（已放量）" : ""}</div>
+                <div className="text-sm text-ink2">
+                  测试组 {data.rollout.testSent}/{data.rollout.testTotal} 已发送 · 放量组 {data.rollout.rolloutTotal} 人待投
+                  {data.rollout.winnerLabel && <> · 当前赢家 <b className="text-ok">变体 {data.rollout.winnerLabel}</b></>}
+                </div>
+              </div>
+              {data.campaign.rolledOut ? (
+                <span className="tag bg-green-50 text-ok">已放量赢家文案</span>
+              ) : data.rollout.canRollout ? (
+                <button className="btn btn-pri" onClick={rollout} disabled={sending}>
+                  放量到赢家（{data.rollout.rolloutTotal} 人）
+                </button>
+              ) : (
+                <span className="text-sm text-ink3">测试阶段发送完成后可放量</span>
+              )}
+            </div>
+          </div>
+        )}
         {data.variantStats?.length > 0 && (
           <div className="card p-5">
             <div className="font-semibold mb-4">A/B 测试结果 <span className="text-xs text-ink3 font-normal">点击率 = 点击 / 发送，绿色为当前领先</span></div>

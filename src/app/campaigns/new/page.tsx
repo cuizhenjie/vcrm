@@ -11,6 +11,8 @@ export default function NewCampaign() {
   const [form, setForm] = useState({ name: "", type: "text_sms", templateId: "" });
   const [abMode, setAbMode] = useState(false);
   const [variants, setVariants] = useState<Variant[]>([{ templateId: "", weight: 1 }, { templateId: "", weight: 1 }]);
+  const [autoRollout, setAutoRollout] = useState(true);
+  const [testRatio, setTestRatio] = useState(20);
   const [busy, setBusy] = useState(false);
   useEffect(() => { fetch("/api/templates").then((r) => r.json()).then((d) => setTpls(d.filter((t: any) => t.reportStatus === "approved"))); }, []);
 
@@ -25,6 +27,8 @@ export default function NewCampaign() {
       const vs = variants.filter((v) => v.templateId);
       if (vs.length < 2) return alert("A/B 测试至少需要 2 个有效变体");
       payload.variants = vs.map((v, i) => ({ ...v, label: String.fromCharCode(65 + i) }));
+      payload.autoRollout = autoRollout;
+      payload.testRatio = testRatio;
     } else {
       payload.templateId = form.templateId;
     }
@@ -80,6 +84,22 @@ export default function NewCampaign() {
                 </div>
               ))}
               {variants.length < 3 && <button className="text-accent text-sm" onClick={addV}>＋ 添加变体（最多 3 个）</button>}
+              <div className="mt-3 pt-3 border-t border-line/60 space-y-2.5">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setAutoRollout(!autoRollout)}
+                    className={`w-10 h-6 rounded-full relative transition ${autoRollout ? "bg-primary" : "bg-gray-300"}`}>
+                    <span className={`absolute w-4 h-4 rounded-full bg-white top-1 transition-all ${autoRollout ? "left-5" : "left-1"}`} /></button>
+                  <div><div className="text-sm font-medium">自动放量</div>
+                    <div className="text-xs text-ink3">小流量测试跑出赢家后，剩余名单自动全投赢家文案</div></div>
+                </div>
+                {autoRollout && (
+                  <div className="flex items-center gap-2 pl-13 text-sm">
+                    <span className="text-ink2">测试流量占比</span>
+                    <input type="range" min={10} max={50} step={5} value={testRatio} onChange={(e) => setTestRatio(Number(e.target.value))} className="flex-1 max-w-[200px]" />
+                    <span className="font-medium text-primary w-10">{testRatio}%</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

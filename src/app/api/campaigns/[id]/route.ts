@@ -28,5 +28,20 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const best = variantStats.filter((v) => v.sent > 0).sort((a, b) => b.ctr - a.ctr)[0];
   const winnerId = best && best.ctr > 0 ? best.id : null;
 
-  return NextResponse.json({ campaign, intent, variantStats, winnerId, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
+  // 自动放量进度
+  let rollout = null as null | { testTotal: number; testSent: number; rolloutTotal: number; canRollout: boolean; winnerLabel?: string };
+  if (campaign.autoRollout) {
+    const [testTotal, testSent, rolloutTotal] = await Promise.all([
+      db.recipient.count({ where: { campaignId: params.id, phase: "test" } }),
+      db.recipient.count({ where: { campaignId: params.id, phase: "test", sendStatus: "sent" } }),
+      db.recipient.count({ where: { campaignId: params.id, phase: "rollout" } }),
+    ]);
+    const testPending = await db.recipient.count({ where: { campaignId: params.id, phase: "test", sendStatus: "pending" } });
+    const winner = variantStats.slice().sort((a, b) => b.ctr - a.ctr || b.sent - a.sent)[0];
+    rollout = { testTotal, testSent, rolloutTotal,
+      canRollout: testTotal > 0 && testPending === 0 && rolloutTotal > 0 && !campaign.rolledOut,
+      winnerLabel: winner?.label };
+  }
+
+  return NextResponse.json({ campaign, intent, variantStats, winnerId, rollout, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
 }

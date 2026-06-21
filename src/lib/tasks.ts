@@ -9,7 +9,7 @@ import { createShortLink } from "./shortlink";
  * 检测→风控→限速分批发送→回写状态。
  * 生产升级路径：抽到独立 worker + BullMQ，支持重试/优先级/可视化。
  */
-export async function processCampaign(campaignId: string) {
+export async function processCampaign(campaignId: string, phase?: "test" | "rollout") {
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
     include: { template: true, variants: { include: { template: true } } },
@@ -21,7 +21,7 @@ export async function processCampaign(campaignId: string) {
   const rate = Number(process.env.SEND_RATE_PER_SEC ?? 20);
 
   const recipients = await db.recipient.findMany({
-    where: { campaignId, sendStatus: "pending" },
+    where: { campaignId, sendStatus: "pending", ...(phase ? { phase } : {}) },
     include: { customer: true, variant: { include: { template: true } } },
   });
 
@@ -69,7 +69,11 @@ export async function processCampaign(campaignId: string) {
     await db.campaign.update({ where: { id: campaignId }, data: { sent: (await countSent(campaignId)) } });
   }
 
-  await db.campaign.update({ where: { id: campaignId }, data: { status: "done", sent: await countSent(campaignId) } });
+  const remaining = await db.recipient.count({ where: { campaignId, sendStatus: "pending" } });
+  await db.campaign.update({
+    where: { id: campaignId },
+    data: { status: remaining > 0 ? "sending" : "done", sent: await countSent(campaignId) },
+  });
 }
 
 const countSent = (campaignId: string) =>

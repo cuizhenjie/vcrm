@@ -73,6 +73,9 @@ model Campaign {
   total       Int      @default(0)
   valid       Int      @default(0)
   sent        Int      @default(0)
+  autoRollout Boolean  @default(false) // 是否自动放量
+  testRatio   Int      @default(20)    // 测试流量占比(%)
+  rolledOut   Boolean  @default(false) // 是否已放量
   createdBy   String?
   createdAt   DateTime @default(now())
   recipients  Recipient[]
@@ -94,6 +97,7 @@ model Recipient {
   sendStatus     String   @default("pending") // pending | sent | failed | filtered
   deliveryStatus String?  // delivered | undelivered | unknown
   failReason     String?
+  phase          String   @default("test") // test | rollout
   intentTag      String?  // 互动意图标签（上行匹配后写入）
   visited        Boolean  @default(false) // 短链是否被点击
   remark         String?  // 业务字段 JSON 字符串
