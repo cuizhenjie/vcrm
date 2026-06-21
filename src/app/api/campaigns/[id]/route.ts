@@ -8,12 +8,13 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   });
   if (!campaign) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const [sent, failed, filtered, visited, delivered] = await Promise.all([
+  const [sent, failed, filtered, visited, delivered, intent] = await Promise.all([
     db.recipient.count({ where: { campaignId: params.id, sendStatus: "sent" } }),
     db.recipient.count({ where: { campaignId: params.id, sendStatus: "failed" } }),
     db.recipient.count({ where: { campaignId: params.id, sendStatus: "filtered" } }),
     db.recipient.count({ where: { campaignId: params.id, visited: true } }),
     db.recipient.count({ where: { campaignId: params.id, deliveryStatus: "delivered" } }),
+    db.recipient.count({ where: { campaignId: params.id, intentTag: "有意向" } }),
   ]);
-  return NextResponse.json({ campaign, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
+  return NextResponse.json({ campaign, intent, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
 }

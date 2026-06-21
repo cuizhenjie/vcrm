@@ -40,6 +40,26 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
             </div>
           ))}
         </div>
+        <div className="card p-5">
+          <div className="font-semibold mb-4">转化漏斗</div>
+          <div className="space-y-2.5">
+            {[
+              { k: "发送成功", v: stats.sent, c: "bg-ok" },
+              { k: "送达", v: stats.delivered, c: "bg-accent" },
+              { k: "短链点击", v: stats.visited, c: "bg-primary" },
+              { k: "产生意向", v: data.intent ?? 0, c: "bg-warn" },
+            ].map((f) => (
+              <div key={f.k} className="flex items-center gap-3">
+                <div className="w-20 text-sm text-ink2 shrink-0">{f.k}</div>
+                <div className="flex-1 bg-gray-100 rounded h-7 overflow-hidden">
+                  <div className={`h-full ${f.c} rounded flex items-center px-2 text-white text-xs font-medium transition-all`}
+                    style={{ width: `${Math.max(stats.sent ? (f.v / stats.sent) * 100 : 0, f.v ? 6 : 0)}%` }}>{f.v}</div>
+                </div>
+                <div className="w-14 text-sm text-ink3 text-right">{stats.sent ? Math.round((f.v / stats.sent) * 100) : 0}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
         <div className="card overflow-hidden">
           <table className="w-full">
             <thead><tr><th className="th">手机号</th><th className="th">流水号</th><th className="th">发送状态</th><th className="th">送达</th><th className="th">短链</th><th className="th">意图标签</th></tr></thead>

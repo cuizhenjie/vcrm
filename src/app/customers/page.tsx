@@ -27,6 +27,14 @@ export default function Customers() {
     const r = await fetch("/api/customers/check", { method: "POST", body: JSON.stringify({}) }).then((r) => r.json());
     setMsg(`检测完成：有效 ${r.valid}/${r.checked}`); setLoading(false); load();
   };
+  const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const fd = new FormData(); fd.append("file", file); fd.append("batchName", batchName || file.name);
+    setLoading(true); setMsg("解析上传中…");
+    const r = await fetch("/api/customers/upload", { method: "POST", body: fd }).then((r) => r.json());
+    setMsg(r.error ? r.error : `上传完成：有效 ${r.valid}/${r.total}，识别列：${(r.columns||[]).join("、")}`);
+    setLoading(false); e.target.value = ""; load();
+  };
 
   return (
     <>
@@ -39,9 +47,14 @@ export default function Customers() {
           <input className="input mb-2.5" placeholder="批次名称" value={batchName} onChange={(e) => setBatchName(e.target.value)} />
           <textarea className="input !h-28 py-2 font-mono" value={raw} onChange={(e) => setRaw(e.target.value)} />
           <div className="flex items-center gap-3 mt-3">
-            <button className="btn btn-pri" onClick={importNames} disabled={loading}>导入</button>
+            <button className="btn btn-pri" onClick={importNames} disabled={loading}>粘贴导入</button>
+            <label className="btn cursor-pointer">
+              上传 Excel/CSV
+              <input type="file" accept=".xls,.xlsx,.csv" className="hidden" onChange={upload} />
+            </label>
             {msg && <span className="text-sm text-ink2">{msg}</span>}
           </div>
+          <p className="text-xs text-ink3 mt-2">Excel 自动识别「手机号/姓名」列，其余列存为千人千面变量（如 product、date），可在短信模板里用 {"{product}"} 引用。</p>
         </div>
 
         <div className="card overflow-hidden">

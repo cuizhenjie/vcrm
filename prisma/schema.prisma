@@ -18,6 +18,7 @@ model Customer {
   carrier      String?  // 移动/联通/电信
   isBlacklist  Boolean  @default(false)
   videoCapable String?  // unknown | yes | no
+  vars         String?  // 自定义变量列 JSON(千人千面)
   checkStatus  String   @default("pending") // pending | checking | done
   batchId      String?
   batch        CustomerBatch? @relation(fields: [batchId], references: [id])
@@ -42,7 +43,8 @@ model SmsTemplate {
   id           String   @id @default(cuid())
   name         String
   type         String   @default("text") // text | mms | flash
-  content      String
+  content      String   // 支持 {name} {link} 等变量占位
+  landingUrl   String?  // {link} 短链指向的落地页
   reportStatus String   @default("draft") // draft | pending | approved | rejected
   createdAt    DateTime @default(now())
   campaigns    Campaign[]

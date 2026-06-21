@@ -1,6 +1,8 @@
 import { db } from "./db";
 import { getProvider } from "./sms";
 import { checkRisk } from "./risk";
+import { render, parseVars } from "./render";
+import { createShortLink } from "./shortlink";
 
 /**
  * 轻量任务处理器（替代 BullMQ/Redis）：
@@ -36,8 +38,15 @@ export async function processCampaign(campaignId: string) {
             return;
           }
         }
-        // 发送（按任务类型走不同通道方法）
-        const content = campaign.template?.content ?? "";
+        // 千人千面：变量替换 + 每条专属短链注入
+        const tpl = campaign.template?.content ?? "";
+        const data: Record<string, string> = { name: r.customer?.name ?? "", ...parseVars(r.customer?.vars) };
+        if (tpl.includes("{link}")) {
+          const target = campaign.template?.landingUrl || process.env.APP_BASE_URL || "http://localhost:3000";
+          const link = await createShortLink(target, r.id); // trackId=r.id → 点击回填 visited
+          data.link = link.shortUrl;
+        }
+        const content = render(tpl, data);
         const res =
           campaign.type === "video_sms"
             ? await provider.sendMms({ mobile: r.mobile, templateId: campaign.templateId ?? "", extno: r.extno })

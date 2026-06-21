@@ -6,13 +6,13 @@ type T = { id: string; name: string; type: string; content: string; reportStatus
 
 export default function Templates() {
   const [list, setList] = useState<T[]>([]);
-  const [form, setForm] = useState({ name: "", type: "text", content: "" });
+  const [form, setForm] = useState({ name: "", type: "text", content: "", landingUrl: "" });
   const load = () => fetch("/api/templates").then((r) => r.json()).then(setList);
   useEffect(() => { load(); }, []);
   const create = async () => {
     if (!form.name || !form.content) return;
     await fetch("/api/templates", { method: "POST", body: JSON.stringify(form) });
-    setForm({ name: "", type: "text", content: "" }); load();
+    setForm({ name: "", type: "text", content: "", landingUrl: "" }); load();
   };
   return (
     <>
@@ -24,7 +24,9 @@ export default function Templates() {
           <select className="input mb-2.5" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
             <option value="text">文本短信</option><option value="mms">视频彩信</option><option value="flash">闪信</option>
           </select>
-          <textarea className="input !h-24 py-2" placeholder="短信正文（营销类需含退订方式）" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+          <textarea className="input !h-24 py-2" placeholder="正文，支持变量：{name} {link} {自定义列}" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+          <input className="input mt-2.5" placeholder="落地页 URL（{link} 短链指向）" value={form.landingUrl} onChange={(e) => setForm({ ...form, landingUrl: e.target.value })} />
+          <div className="text-xs text-ink3 mt-2">可用变量：<code>{"{name}"}</code> 姓名、<code>{"{link}"}</code> 专属短链（自动追踪点击）、<code>{"{列名}"}</code> 名单自定义列</div>
           <button className="btn btn-pri w-full mt-3" onClick={create}>提交（待报备）</button>
         </div>
         <div className="card overflow-hidden h-fit">
