@@ -1,0 +1,116 @@
+// VCRM 短信触达 MVP 数据模型
+// 注意：SQLite 不支持 enum / 数组，状态字段统一用 String，JSON 用字符串存储
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// 客户名单
+model Customer {
+  id           String   @id @default(cuid())
+  name         String?
+  mobile       String
+  province     String?
+  carrier      String?  // 移动/联通/电信
+  isBlacklist  Boolean  @default(false)
+  videoCapable String?  // unknown | yes | no
+  checkStatus  String   @default("pending") // pending | checking | done
+  batchId      String?
+  batch        CustomerBatch? @relation(fields: [batchId], references: [id])
+  recipients   Recipient[]
+  createdAt    DateTime @default(now())
+  @@index([mobile])
+}
+
+/// 导入批次
+model CustomerBatch {
+  id          String   @id @default(cuid())
+  name        String
+  total       Int      @default(0)
+  valid       Int      @default(0)
+  checkStatus String   @default("pending")
+  customers   Customer[]
+  createdAt   DateTime @default(now())
+}
+
+/// 短信/彩信模板（需报备）
+model SmsTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  type         String   @default("text") // text | mms | flash
+  content      String
+  reportStatus String   @default("draft") // draft | pending | approved | rejected
+  createdAt    DateTime @default(now())
+  campaigns    Campaign[]
+}
+
+/// 短链（访问追踪）
+model ShortLink {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  targetUrl String
+  trackId   String?  // 关联 recipient.id，用于回填“已访问”
+  clicks    Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+/// 触达任务
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   @default("text_sms") // text_sms | video_sms | flash
+  templateId  String?
+  template    SmsTemplate? @relation(fields: [templateId], references: [id])
+  status      String   @default("draft") // draft | checking | pending | sending | done | stopped
+  scheduledAt DateTime?
+  total       Int      @default(0)
+  valid       Int      @default(0)
+  sent        Int      @default(0)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  recipients  Recipient[]
+}
+
+/// 任务-号码明细
+model Recipient {
+  id             String   @id @default(cuid())
+  campaignId     String
+  campaign       Campaign @relation(fields: [campaignId], references: [id])
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  mobile         String
+  extno          String   @unique @default(cuid()) // 业务流水号(全局唯一)，回执/上行回填靠它
+  // ⚠ 真实联麓 extno 多为数字扩展号且有长度限制，对接时按文档替换生成规则
+  sendStatus     String   @default("pending") // pending | sent | failed | filtered
+  deliveryStatus String?  // delivered | undelivered | unknown
+  failReason     String?
+  intentTag      String?  // 互动意图标签（上行匹配后写入）
+  visited        Boolean  @default(false) // 短链是否被点击
+  remark         String?  // 业务字段 JSON 字符串
+  createdAt      DateTime @default(now())
+  reports        DeliveryReport[]
+  @@index([campaignId])
+}
+
+/// 状态报告（联麓回调写入）
+model DeliveryReport {
+  id          String   @id @default(cuid())
+  recipientId String
+  recipient   Recipient @relation(fields: [recipientId], references: [id])
+  status      String
+  reportedAt  DateTime @default(now())
+}
+
+/// 上行回复（联麓 MO 回调写入）
+model MoMessage {
+  id          String   @id @default(cuid())
+  recipientId String?
+  mobile      String
+  content     String
+  matchedAttr String?  // positive | negative | default
+  receivedAt  DateTime @default(now())
+}
