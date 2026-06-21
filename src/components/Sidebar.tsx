@@ -7,10 +7,13 @@ const groups = [
   { label: "客户管理", icon: "👥", items: [{ href: "/customers", name: "客户导入" }] },
   { label: "内容与话术", icon: "✎", items: [{ href: "/templates", name: "短信模板" }] },
   { label: "营销触达", icon: "📣", items: [{ href: "/campaigns", name: "触达任务" }] },
+  { label: "数据中心", icon: "📊", items: [{ href: "/analytics", name: "转化概览" }] },
 ];
 
 export default function Sidebar() {
   const path = usePathname();
+  if (path?.startsWith("/login")) return null;
+  const logout = async () => { await fetch("/api/logout", { method: "POST" }); window.location.href = "/login"; };
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   return (
     <aside className="w-52 shrink-0 bg-nav min-h-screen sticky top-0 flex flex-col py-4 text-[#aeb4c6]">
@@ -31,7 +34,9 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-      <div className="px-5 pt-3 border-t border-[#262c40] text-xs text-[#737b93]">通道：{process.env.NEXT_PUBLIC_PROVIDER ?? "mock"}</div>
+      <div className="px-5 pt-3 border-t border-[#262c40]">
+        <button onClick={logout} className="text-xs text-[#737b93] hover:text-white">↩ 退出登录</button>
+      </div>
     </aside>
   );
 }

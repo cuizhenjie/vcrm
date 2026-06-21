@@ -27,6 +27,9 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
 
   let sent = 0;
   for (let i = 0; i < recipients.length; i += rate) {
+    // 运营可中途停止：每批前检查状态
+    const fresh = await db.campaign.findUnique({ where: { id: campaignId }, select: { status: true } });
+    if (fresh?.status === "stopped") return;
     const batch = recipients.slice(i, i + rate);
     await Promise.all(
       batch.map(async (r) => {
@@ -69,6 +72,8 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
     await db.campaign.update({ where: { id: campaignId }, data: { sent: (await countSent(campaignId)) } });
   }
 
+  const cur = await db.campaign.findUnique({ where: { id: campaignId }, select: { status: true } });
+  if (cur?.status === "stopped") return;
   const remaining = await db.recipient.count({ where: { campaignId, sendStatus: "pending" } });
   await db.campaign.update({
     where: { id: campaignId },

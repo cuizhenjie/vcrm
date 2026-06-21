@@ -15,6 +15,12 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
     await fetch(`/api/campaigns/${params.id}/send`, { method: "POST" });
     setTimeout(load, 800);
   };
+  const stop = async () => {
+    if (!confirm("确定停止该任务？已发送的不可撤回，未发送的将不再发送。")) return;
+    setSending(true);
+    await fetch(`/api/campaigns/${params.id}/stop`, { method: "POST" });
+    setSending(false); setTimeout(load, 600);
+  };
   const rollout = async (force = false) => {
     setSending(true);
     const r = await fetch(`/api/campaigns/${params.id}/rollout`, { method: "POST", body: JSON.stringify({ force }) }).then((r) => r.json());
@@ -37,6 +43,9 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
           <button className="btn btn-pri ml-2" onClick={send} disabled={sending}>{sending ? "发送中…" : "开始发送"}</button>}
         {campaign.status === "scheduled" &&
           <button className="btn ml-2" onClick={send} disabled={sending}>立即发送</button>}
+        {["sending", "pending", "scheduled"].includes(campaign.status) &&
+          <button className="btn ml-2" onClick={stop} disabled={sending}>停止任务</button>}
+        <a className="btn ml-2" href={`/api/campaigns/${params.id}/export`}>导出明细</a>
       </Topbar>
       <div className="p-6 space-y-5">
         {campaign.status === "scheduled" && (

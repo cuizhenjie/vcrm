@@ -86,3 +86,29 @@ curl -X POST localhost:3000/api/webhooks/mo \
 - 自动放量前做**双比例 z 检验**：样本不足（每组 < `AB_MIN_SAMPLE`，默认 30）或差异不显著（置信度 < 95%）时**拦截放量**（HTTP 409），避免把整批名单投给小样本「假赢家」
 - 详情页展示置信度与原因；不显著时可人工 `force` 强制放量
 - 纯函数实现（`src/lib/significance.ts`），无第三方依赖
+
+## v1.0 — 完整可运行系统 ✅
+
+至此短信触达 MVP 形成端到端闭环，可直接部署运行：
+
+**登录认证**：全站中间件鉴权，登录页 + 会话 Cookie；放行短链/回调/cron 等公开路径（`.env` 的 `APP_PASSWORD`/`AUTH_SECRET`）
+
+**完整功能闭环**
+1. 登录 → 工作台概览
+2. 客户管理：粘贴/Excel 导入 → 号码检测（剔除空号/黑名单）
+3. 短信模板：维护 + 变量 `{name}{link}{自定义列}` + 报备状态
+4. 触达任务：分群圈选 + A/B 多变体 + 定时/避扰 + 自动放量(含显著性闸门)
+5. 发送：千人千面渲染 + 专属短链 + 限速 + **中途可停止**
+6. 回执/上行回调回填 → 转化漏斗 + 意图标签
+7. 数据中心：组织级总览 + 14 天趋势 + 活动 CTR 排行
+8. **导出**活动明细 CSV（UTF-8 BOM，Excel 直接打开）
+
+**部署**
+```bash
+cp .env.example .env   # 改 APP_PASSWORD / AUTH_SECRET / 联麓凭证
+npm install && npm run setup
+npm run build && npm start   # 或 npm run dev
+# 定时任务：让 cron 每分钟 curl /api/cron/tick
+```
+
+**仅剩对外依赖**：接通真实联麓通道（`LianluProvider` 已配置化，待 api_4_2 文档字段）；其余功能软件侧已完整。
