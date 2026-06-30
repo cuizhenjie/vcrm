@@ -28,15 +28,19 @@ src/
     api/campaigns           任务 列表/新建/详情/发送
     api/webhooks/delivery   联麓状态报告回调（靠 extno 回填送达）
     api/webhooks/mo         联麓上行回复回调（关键词→意图标签）
+    api/leads               线索池：列表(筛选+分页)/跟进状态更新/CSV导出
+    api/leads/logs          跟进操作日志：线索时间线 / 全局最近动态
+    api/analytics           看板：汇总 + 转化漏斗 + 趋势 + 活动排行 + 跟进动态
     s/[code]                短链跳转 + 点击追踪
-    customers/ templates/ campaigns/   业务页面
+    customers/ templates/ campaigns/ leads/ analytics/   业务页面
   lib/
     sms/                    通道适配层：types / provider / lianlu / mock / index
-    db.ts risk.ts shortlink.ts tasks.ts
+    db.ts risk.ts shortlink.ts tasks.ts leads.ts(线索仓储)
+    funnel.ts(转化漏斗) follow-logs.ts(跟进日志) roi.ts(ROI归因)
 prisma/schema.prisma        数据模型
 ```
 
-## 切换到真实联麓通道
+## 切换到真实短信通道
 1. 控制台核对 `console/document/api_4_2` 的真实 **发送路径 / 参数名 / 签名算法 / 回执字段**
 2. 修改 `src/lib/sms/lianlu.ts` 中带 `⚠` 注释处的占位实现
 3. `.env` 设 `SMS_PROVIDER=lianlu` 并填 `LIANLU_*` 凭证
@@ -56,9 +60,9 @@ curl -X POST localhost:3000/api/webhooks/mo \
 ```
 
 ## 落地路线
-- ✅ **Phase 1（本仓库）**：客户管理 + 短信/彩信触达 + 短链 + 数据看板
+- ✅ **Phase 1（本仓库）**：客户管理 + 短信/彩信触达 + 短链 + 数据看板(转化漏斗 + ROI 归因) + 线索池(上行回复→转化跟进，成交额 + 操作日志审计)
 - ⏭ **Phase 2**：内容创作引擎（视频编辑器 + 话术编排 + TTS/数字人/合成）
-- ⏭ **Phase 3**：5G 视频外呼（需运营商 5G 视频线路 + SP 资质，联麓通道不覆盖）
+- ⏭ **Phase 3**：5G 视频外呼（需运营商 5G 视频线路 + SP 资质，短信通道不覆盖）
 
 > ⚠ 合规硬门槛：发送前必须完成 **签名报备 + 模板报备**；营销短信需含退订方式与频控。
 
@@ -75,7 +79,7 @@ curl -X POST localhost:3000/api/webhooks/mo \
 - 新建任务时按「归属地 / 运营商 / 仅历史有意向客户」筛选人群，实时显示匹配人数
 - `GET /api/customers/facets` 取可选维度；`POST /api/customers/segment` 预览匹配数
 
-### 联麓通道强化
+### 短信通道强化
 - `LianluProvider` 端点/签名算法/成功字段全部抽到 `.env`（对接时改配置即可，⚠ 以 api_4_2 文档为准）
 - 新增 `queryStatus`（主动查回执，回调兜底）、`balance`（余额）
 - 通道自检：`GET /api/health/channel` 返回当前通道、配置完整性、余额
@@ -111,7 +115,7 @@ npm run build && npm start   # 或 npm run dev
 # 定时任务：让 cron 每分钟 curl /api/cron/tick
 ```
 
-**仅剩对外依赖**：接通真实联麓通道（`LianluProvider` 已配置化，待 api_4_2 文档字段）；其余功能软件侧已完整。
+**仅剩对外依赖**：接通真实短信通道（`LianluProvider` 已配置化，待 api_4_2 文档字段）；其余功能软件侧已完整。
 
 ### 再营销（v1.1）
 - 活动详情页一键从响应人群圈人做二次触达：**有意向（热）/ 点击过（温）/ 已触达未点击（冷）**

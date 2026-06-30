@@ -99,12 +99,33 @@ model Recipient {
   deliveryStatus String?  // delivered | undelivered | unknown
   failReason     String?
   phase          String   @default("test") // test | rollout
-  intentTag      String?  // 互动意图标签（上行匹配后写入）
+  intentTag      String?  // 互动意图标签（上行匹配后写入），有值即视为线索
+  followStatus   String   @default("new") // new 待跟进 | following 跟进中 | won 已成交 | lost 已流失
+  dealValue      Float?   // 成交金额(元)，仅 followStatus=won 计入 ROI 营收
+  followNote     String?  // 销售跟进备注
+  followedAt     DateTime? // 最近一次跟进操作时间
   visited        Boolean  @default(false) // 短链是否被点击
   remark         String?  // 业务字段 JSON 字符串
   createdAt      DateTime @default(now())
   reports        DeliveryReport[]
+  logs           FollowLog[]
   @@index([campaignId])
+  @@index([followStatus]) // 漏斗成交档 / 线索状态汇总
+  @@index([intentTag, followStatus]) // 线索池筛选主路径
+}
+
+/// 线索跟进操作日志（审计每次状态/备注变更）
+model FollowLog {
+  id          String    @id @default(cuid())
+  recipientId String
+  recipient   Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  fromStatus  String?   // 状态变更前（仅改备注时为空）
+  toStatus    String?   // 状态变更后
+  note        String?   // 操作摘要（备注变更 / 成交额变更等，非 followNote 镜像）
+  actor       String    @default("运营") // 操作人（当前单一共享登录，预留多用户）
+  createdAt   DateTime  @default(now())
+  @@index([recipientId, createdAt])
+  @@index([createdAt])
 }
 
 /// A/B 测试变体：一个活动可挂多个文案变体，按权重分流
@@ -137,4 +158,5 @@ model MoMessage {
   content     String
   matchedAttr String?  // positive | negative | default
   receivedAt  DateTime @default(now())
+  @@index([recipientId, receivedAt]) // 线索取「最新回复」用
 }

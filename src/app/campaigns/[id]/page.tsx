@@ -2,11 +2,28 @@
 import { useEffect, useState, useCallback } from "react";
 import { Topbar, Tag } from "@/components/ui";
 
+const money = (n?: number | null) =>
+  n == null ? "—" : `¥${n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const signedMoney = (n?: number | null) =>
+  n == null ? "—" : `${n < 0 ? "-" : ""}¥${Math.abs(n).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const pct = (n?: number | null) => (n == null ? "—" : Math.round(n * 100) + "%");
+
 export default function CampaignDetail({ params }: { params: { id: string } }) {
   const [data, setData] = useState<any>(null);
   const [sending, setSending] = useState(false);
+  const [rtAudience, setRtAudience] = useState("intent");
+  const [rtTpl, setRtTpl] = useState("");
+  const [tpls, setTpls] = useState<any[]>([]);
   const load = useCallback(() => fetch(`/api/campaigns/${params.id}`).then((r) => r.json()).then(setData), [params.id]);
-  useEffect(() => { load(); const t = setInterval(load, 2500); return () => clearInterval(t); }, [load]);
+  const terminal = data?.campaign?.status === "done" || data?.campaign?.status === "stopped";
+  useEffect(() => {
+    load();
+    if (terminal) return; // 终态(已完成/已停止)不再轮询，省去重复 funnel/roi 查询
+    const t = setInterval(load, 2500);
+    return () => clearInterval(t);
+  }, [load, terminal]);
+  useEffect(() => { fetch("/api/templates").then((r) => r.json()).then((d) => setTpls(d.filter((t: any) => t.reportStatus === "approved"))); }, []);
+  // ⚠ 所有 hooks 必须在任何 early return 之前声明，否则违反 React Hooks 顺序规则
   if (!data?.campaign) return <div className="p-6 text-ink3">加载中…</div>;
   const { campaign, stats } = data;
 
@@ -15,10 +32,6 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
     await fetch(`/api/campaigns/${params.id}/send`, { method: "POST" });
     setTimeout(load, 800);
   };
-  const [rtAudience, setRtAudience] = useState("intent");
-  const [rtTpl, setRtTpl] = useState("");
-  const [tpls, setTpls] = useState<any[]>([]);
-  useEffect(() => { fetch("/api/templates").then((r) => r.json()).then((d) => setTpls(d.filter((t: any) => t.reportStatus === "approved"))); }, []);
   const retarget = async () => {
     if (!rtTpl) return alert("请选择再营销文案");
     setSending(true);
@@ -43,6 +56,7 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
     setSending(false); setTimeout(load, 800);
   };
   const rate = (n: number) => (stats.total ? Math.round((n / stats.total) * 100) : 0);
+  const maxFunnel = Math.max(1, ...(data.funnel ?? []).map((f: any) => f.count));
   const metrics = [
     { k: "发送成功", v: stats.sent, s: `${rate(stats.sent)}%`, c: "text-ok" },
     { k: "送达", v: stats.delivered, s: "回执确认", c: "text-accent" },
@@ -78,6 +92,30 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
             </div>
           ))}
         </div>
+        {data.roi && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+            <div className="card p-4">
+              <div className="text-sm text-ink2 mb-2">活动营收</div>
+              <div className="text-2xl font-bold text-ok leading-none">{money(data.roi.revenue)}</div>
+              <div className="text-xs text-ink3 mt-1.5">成交 {data.roi.wonCount} 单</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-sm text-ink2 mb-2">活动成本</div>
+              <div className="text-2xl font-bold text-primary leading-none">{money(data.roi.cost)}</div>
+              <div className="text-xs text-ink3 mt-1.5">已发送 × {money(data.roi.unitCost)}</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-sm text-ink2 mb-2">活动利润</div>
+              <div className={`text-2xl font-bold leading-none ${data.roi.profit >= 0 ? "text-ok" : "text-danger"}`}>{signedMoney(data.roi.profit)}</div>
+              <div className="text-xs text-ink3 mt-1.5">营收 − 成本</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-sm text-ink2 mb-2">活动 ROI</div>
+              <div className={`text-2xl font-bold leading-none ${data.roi.roi == null || data.roi.roi >= 0 ? "text-primary" : "text-danger"}`}>{pct(data.roi.roi)}</div>
+              <div className="text-xs text-ink3 mt-1.5">ROAS {data.roi.roas == null ? "—" : `${data.roi.roas.toFixed(2)}x`}</div>
+            </div>
+          </div>
+        )}
         {data.rollout && (
           <div className="card p-5 border-l-4 border-l-primary">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -137,23 +175,26 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
           </div>
         )}
         <div className="card p-5">
-          <div className="font-semibold mb-4">转化漏斗</div>
-          <div className="space-y-2.5">
-            {[
-              { k: "发送成功", v: stats.sent, c: "bg-ok" },
-              { k: "送达", v: stats.delivered, c: "bg-accent" },
-              { k: "短链点击", v: stats.visited, c: "bg-primary" },
-              { k: "产生意向", v: data.intent ?? 0, c: "bg-warn" },
-            ].map((f) => (
-              <div key={f.k} className="flex items-center gap-3">
-                <div className="w-20 text-sm text-ink2 shrink-0">{f.k}</div>
-                <div className="flex-1 bg-gray-100 rounded h-7 overflow-hidden">
-                  <div className={`h-full ${f.c} rounded flex items-center px-2 text-white text-xs font-medium transition-all`}
-                    style={{ width: `${Math.max(stats.sent ? (f.v / stats.sent) * 100 : 0, f.v ? 6 : 0)}%` }}>{f.v}</div>
+          <div className="font-semibold mb-1">转化漏斗</div>
+          <div className="text-xs text-ink3 mb-4">口径与数据中心一致：触及的最深档 · 环比=相对上一档，总转化=相对发送</div>
+          <div className="space-y-3">
+            {(data.funnel ?? []).map((f: any, idx: number) => (
+              <div key={f.key} className="grid grid-cols-[56px_1fr_140px] gap-3 items-center">
+                <div>
+                  <div className="text-sm font-medium">{f.label}</div>
+                  <div className="text-xs text-ink3">第{idx + 1}档</div>
                 </div>
-                <div className="w-14 text-sm text-ink3 text-right">{stats.sent ? Math.round((f.v / stats.sent) * 100) : 0}%</div>
+                <div className="h-8 bg-gray-100 rounded overflow-hidden">
+                  <div className="h-full bg-primary rounded flex items-center px-2 text-white text-xs font-medium transition-all"
+                    style={{ width: `${Math.max((f.count / maxFunnel) * 100, f.count ? 5 : 0)}%` }}>{f.count}</div>
+                </div>
+                <div className="text-xs text-ink3">
+                  <div>环比 <b className="text-ink2">{idx === 0 ? "—" : pct(f.stepRate)}</b></div>
+                  <div>总转化 <b className="text-ink2">{pct(f.totalRate)}</b></div>
+                </div>
               </div>
             ))}
+            {(data.funnel ?? []).length === 0 && <div className="text-sm text-ink3">暂无漏斗数据</div>}
           </div>
         </div>
         {data.audiences && stats.sent > 0 && (
