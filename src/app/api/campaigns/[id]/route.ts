@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { abSignificance } from "@/lib/significance";
 import { audienceCounts } from "@/lib/retarget";
+import { conversionFunnel } from "@/lib/funnel";
+import { campaignRoiOne } from "@/lib/roi";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const campaign = await db.campaign.findUnique({
@@ -10,13 +12,14 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   });
   if (!campaign) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const [sent, failed, filtered, visited, delivered, intent] = await Promise.all([
+  const [sent, failed, filtered, visited, delivered, funnel, roi] = await Promise.all([
     db.recipient.count({ where: { campaignId: params.id, sendStatus: "sent" } }),
     db.recipient.count({ where: { campaignId: params.id, sendStatus: "failed" } }),
     db.recipient.count({ where: { campaignId: params.id, sendStatus: "filtered" } }),
     db.recipient.count({ where: { campaignId: params.id, visited: true } }),
     db.recipient.count({ where: { campaignId: params.id, deliveryStatus: "delivered" } }),
-    db.recipient.count({ where: { campaignId: params.id, intentTag: "有意向" } }),
+    conversionFunnel(params.id),
+    campaignRoiOne(params.id),
   ]);
   // A/B 各变体表现：点击率 = 点击/发送，标出领先者
   const variants = await db.campaignVariant.findMany({ where: { campaignId: params.id }, include: { template: true } });
@@ -55,5 +58,5 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   }
 
   const audiences = await audienceCounts(params.id);
-  return NextResponse.json({ campaign, intent, variantStats, winnerId, rollout, audiences, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
+  return NextResponse.json({ campaign, intent, funnel, roi, variantStats, winnerId, rollout, audiences, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
 }

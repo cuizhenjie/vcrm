@@ -6,7 +6,7 @@ const groups = [
   { label: "工作台", icon: "⌂", items: [{ href: "/", name: "概览" }] },
   { label: "客户管理", icon: "👥", items: [{ href: "/customers", name: "客户导入" }] },
   { label: "内容与话术", icon: "✎", items: [{ href: "/templates", name: "短信模板" }] },
-  { label: "营销触达", icon: "📣", items: [{ href: "/campaigns", name: "触达任务" }] },
+  { label: "营销触达", icon: "📣", items: [{ href: "/campaigns", name: "触达任务" }, { href: "/leads", name: "线索池" }] },
   { label: "数据中心", icon: "📊", items: [{ href: "/analytics", name: "转化概览" }] },
 ];
 

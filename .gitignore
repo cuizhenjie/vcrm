@@ -7,3 +7,9 @@ out
 prisma/*.db
 prisma/*.db-journal
 .DS_Store
+
+# TypeScript incremental build info
+tsconfig.tsbuildinfo
+
+# OMC orchestration state
+.omc/

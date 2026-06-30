@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { conversionFunnel } from "@/lib/funnel";
+import { listFollowLogs } from "@/lib/follow-logs";
+import { campaignRoi, orgRoi } from "@/lib/roi";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [totalCustomers, totalCampaigns, totalSent, totalVisited, totalDelivered] = await Promise.all([
+  const [totalCustomers, totalCampaigns, totalSent, totalVisited, totalDelivered, funnel, recentFollowLogs, roi, topCampaigns] = await Promise.all([
     db.customer.count({ where: { isBlacklist: false } }),
     db.campaign.count(),
     db.recipient.count({ where: { sendStatus: "sent" } }),
     db.recipient.count({ where: { visited: true } }),
     db.recipient.count({ where: { deliveryStatus: "delivered" } }),
+    conversionFunnel(),
+    listFollowLogs(),
+    orgRoi(),
+    campaignRoi(),
   ]);
 
   // 近14天发送趋势（JS 端按日期分桶，兼容 SQLite）
@@ -24,20 +31,9 @@ export async function GET() {
     days.push({ date: key, sent: dayRows.length, clicks: dayRows.filter((r) => r.visited).length });
   }
 
-  // 活动 CTR 排行（已发送的）
-  const campaigns = await db.campaign.findMany({ orderBy: { createdAt: "desc" }, take: 50 });
-  const ranked = await Promise.all(campaigns.map(async (c) => {
-    const [sent, visited] = await Promise.all([
-      db.recipient.count({ where: { campaignId: c.id, sendStatus: "sent" } }),
-      db.recipient.count({ where: { campaignId: c.id, visited: true } }),
-    ]);
-    return { id: c.id, name: c.name, sent, visited, ctr: sent ? visited / sent : 0 };
-  }));
-  const topCampaigns = ranked.filter((c) => c.sent > 0).sort((a, b) => b.ctr - a.ctr).slice(0, 8);
-
   const overallCtr = totalSent ? totalVisited / totalSent : 0;
   return NextResponse.json({
     summary: { totalCustomers, totalCampaigns, totalSent, totalVisited, totalDelivered, overallCtr },
-    days, topCampaigns,
+    funnel, roi, recentFollowLogs, days, topCampaigns,
   });
 }
