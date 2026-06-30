@@ -36,27 +36,36 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   // 自动放量进度
   let rollout: any = null;
   if (campaign.autoRollout) {
-    const [testTotal, testSent, rolloutTotal] = await Promise.all([
-      db.recipient.count({ where: { campaignId: params.id, phase: "test" } }),
-      db.recipient.count({ where: { campaignId: params.id, phase: "test", sendStatus: "sent" } }),
-      db.recipient.count({ where: { campaignId: params.id, phase: "rollout" } }),
+  const [testTotal, testSent, rolloutTotal] = await Promise.all([
+    db.recipient.count({ where: { campaignId: params.id, phase: "test" } }),
+    db.recipient.count({ where: { campaignId: params.id, phase: "test", sendStatus: "sent" } }),
+    db.recipient.count({ where: { campaignId: params.id, phase: "rollout" } }),
+  ]);
+  const testPending = await db.recipient.count({ where: { campaignId: params.id, phase: "test", sendStatus: "pending" } });
+  // 显著性基于「测试阶段」各变体表现
+  const tScores = await Promise.all((await db.campaignVariant.findMany({ where: { campaignId: params.id } })).map(async (v) => {
+    const [vs, vv] = await Promise.all([
+      db.recipient.count({ where: { campaignId: params.id, variantId: v.id, phase: "test", sendStatus: "sent" } }),
+      db.recipient.count({ where: { campaignId: params.id, variantId: v.id, phase: "test", visited: true } }),
     ]);
-    const testPending = await db.recipient.count({ where: { campaignId: params.id, phase: "test", sendStatus: "pending" } });
-    // 显著性基于「测试阶段」各变体表现
-    const tScores = await Promise.all((await db.campaignVariant.findMany({ where: { campaignId: params.id } })).map(async (v) => {
-      const [vs, vv] = await Promise.all([
-        db.recipient.count({ where: { campaignId: params.id, variantId: v.id, phase: "test", sendStatus: "sent" } }),
-        db.recipient.count({ where: { campaignId: params.id, variantId: v.id, phase: "test", visited: true } }),
-      ]);
-      return { id: v.id, label: v.label, sent: vs, visited: vv };
-    }));
-    const sig = abSignificance(tScores);
-    rollout = { testTotal, testSent, rolloutTotal,
-      canRollout: testTotal > 0 && testPending === 0 && rolloutTotal > 0 && !campaign.rolledOut,
-      winnerLabel: sig.winner?.label,
-      significant: sig.significant, confidence: sig.confidence, reason: sig.reason, minSample: sig.minSample };
+    return { id: v.id, label: v.label, sent: vs, visited: vv };
+  }));
+  const sig = abSignificance(tScores);
+  // P1-7 增强：把 significance 完整字段透传给前端（含 z / pValue / confidence / enoughSample / minSample）
+  rollout = {
+    testTotal, testSent, rolloutTotal,
+    canRollout: testTotal > 0 && testPending === 0 && rolloutTotal > 0 && !campaign.rolledOut,
+    winnerLabel: sig.winner?.label,
+    significant: sig.significant, confidence: sig.confidence, reason: sig.reason, minSample: sig.minSample,
+    z: Number(sig.z.toFixed(4)),
+    pValue: Number(sig.pValue.toFixed(4)),
+    enoughSample: sig.enoughSample,
+    winnerStats: sig.winner ? { sent: sig.winner.sent, visited: sig.winner.visited, ctr: sig.winner.sent ? sig.winner.visited / sig.winner.sent : 0 } : null,
+    runnerUpLabel: sig.runnerUp?.label ?? null,
+    runnerUpStats: sig.runnerUp ? { sent: sig.runnerUp.sent, visited: sig.runnerUp.visited, ctr: sig.runnerUp.sent ? sig.runnerUp.visited / sig.runnerUp.sent : 0 } : null,
+  };
   }
 
   const audiences = await audienceCounts(params.id);
-  return NextResponse.json({ campaign, intent, funnel, roi, variantStats, winnerId, rollout, audiences, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
+  return NextResponse.json({ campaign, funnel, roi, variantStats, winnerId, rollout, audiences, stats: { sent, failed, filtered, visited, delivered, total: campaign.total } });
 }

@@ -6,6 +6,7 @@ out
 .env.local
 prisma/*.db
 prisma/*.db-journal
+prisma/prisma/
 .DS_Store
 
 # TypeScript incremental build info

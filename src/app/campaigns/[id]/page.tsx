@@ -119,7 +119,7 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
         {data.rollout && (
           <div className="card p-5 border-l-4 border-l-primary">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
+              <div className="flex-1 min-w-[280px]">
                 <div className="font-semibold mb-1">自动放量{data.campaign.rolledOut ? "（已放量）" : ""}</div>
                 <div className="text-sm text-ink2">
                   测试组 {data.rollout.testSent}/{data.rollout.testTotal} 已发送 · 放量组 {data.rollout.rolloutTotal} 人待投
@@ -129,6 +129,46 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
                   <div className={`text-xs mt-1 ${data.rollout.significant ? "text-ok" : "text-warn"}`}>
                     {data.rollout.significant ? "✓ " : "⚠ "}{data.rollout.reason}
                   </div>
+                )}
+                {/* P1-7 增强：显著性统计明细 */}
+                {data.rollout.z !== undefined && (
+                  <details className="mt-2 text-xs text-ink3">
+                    <summary className="cursor-pointer hover:text-ink2 select-none">📊 查看显著性统计明细（z / p-value / 置信度）</summary>
+                    <div className="mt-2 p-3 bg-gray-50 rounded grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
+                      <div>
+                        <div className="text-ink2 text-[10px]">z 统计量</div>
+                        <div className="text-sm font-semibold">{data.rollout.z.toFixed(4)}</div>
+                      </div>
+                      <div>
+                        <div className="text-ink2 text-[10px]">p-value</div>
+                        <div className="text-sm font-semibold">{data.rollout.pValue.toFixed(4)}</div>
+                      </div>
+                      <div>
+                        <div className="text-ink2 text-[10px]">置信度</div>
+                        <div className="text-sm font-semibold">{data.rollout.confidence}%</div>
+                      </div>
+                      <div>
+                        <div className="text-ink2 text-[10px]">最小样本</div>
+                        <div className="text-sm font-semibold">{data.rollout.minSample}/组</div>
+                      </div>
+                      {data.rollout.winnerStats && data.rollout.runnerUpLabel && (
+                        <>
+                          <div className="col-span-2">
+                            <div className="text-ink2 text-[10px]">赢家 {data.rollout.winnerLabel}</div>
+                            <div className="text-sm">发送 {data.rollout.winnerStats.sent} · 点击 {data.rollout.winnerStats.visited} · CTR {pct(data.rollout.winnerStats.ctr)}</div>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="text-ink2 text-[10px]">亚军 {data.rollout.runnerUpLabel}</div>
+                            <div className="text-sm">发送 {data.rollout.runnerUpStats?.sent ?? 0} · 点击 {data.rollout.runnerUpStats?.visited ?? 0} · CTR {pct(data.rollout.runnerUpStats?.ctr ?? 0)}</div>
+                          </div>
+                        </>
+                      )}
+                      <div className="col-span-2 md:col-span-4 text-[10px] text-ink3 leading-relaxed">
+                        💡 双比例 z 检验：p &lt; 0.05 + 样本量 ≥ {data.rollout.minSample}/组 才认为差异显著。
+                        置信度 {data.rollout.confidence}% 表示「重复实验有多大概率重现此差异」。
+                      </div>
+                    </div>
+                  </details>
                 )}
               </div>
               {data.campaign.rolledOut ? (

@@ -160,3 +160,16 @@ model MoMessage {
   receivedAt  DateTime @default(now())
   @@index([recipientId, receivedAt]) // 线索取「最新回复」用
 }
+
+/// 分群预设：保存常用客户分群条件（按归属地/运营商/历史意向），下次建活动一键复用
+model SegmentPreset {
+  id          String   @id @default(cuid())
+  name        String   // 运营自命名（如"高价值江浙沪用户"）
+  batchId     String?  // 关联导入批次
+  provinces   String?  // JSON 数组 ["江苏", "浙江"]
+  carriers    String?  // JSON 数组 ["移动", "联通"]
+  onlyIntent  Boolean  @default(false)
+  matchCount  Int      @default(0)  // 保存时记录匹配客户数（仅参考，不强制）
+  createdAt   DateTime @default(now())
+  @@index([createdAt])
+}

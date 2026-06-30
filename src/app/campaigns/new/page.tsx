@@ -23,11 +23,42 @@ export default function NewCampaign() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [quietHours, setQuietHours] = useState(true);
   const [busy, setBusy] = useState(false);
+  // P2-9: 分群预设
+  const [presets, setPresets] = useState<any[]>([]);
+  const [presetName, setPresetName] = useState("");
+  const [savingPreset, setSavingPreset] = useState(false);
 
   useEffect(() => {
     fetch("/api/templates").then((r) => r.json()).then((d) => setTpls(d.filter((t: any) => t.reportStatus === "approved")));
     fetch("/api/customers/facets").then((r) => r.json()).then(setFacets);
+    fetch("/api/segment-presets").then((r) => r.json()).then(setPresets).catch(() => setPresets([]));
   }, []);
+
+  const savePreset = async () => {
+    if (!presetName.trim()) return;
+    setSavingPreset(true);
+    const r = await fetch("/api/segment-presets", {
+      method: "POST", body: JSON.stringify({
+        name: presetName.trim(), provinces, carriers, onlyIntent,
+      }),
+    }).then((r) => r.json());
+    setSavingPreset(false);
+    if (r.error) return alert(r.error);
+    setPresets([{ ...r, matchCount: matched ?? 0 }, ...presets]);
+    setPresetName("");
+  };
+
+  const loadPreset = (p: any) => {
+    setProvinces(p.provinces || []);
+    setCarriers(p.carriers || []);
+    setOnlyIntent(!!p.onlyIntent);
+  };
+
+  const deletePreset = async (id: string) => {
+    if (!confirm("删除该分群预设？")) return;
+    await fetch(`/api/segment-presets/${id}`, { method: "DELETE" });
+    setPresets(presets.filter((p) => p.id !== id));
+  };
 
   const segment = { provinces, carriers, onlyIntent };
   useEffect(() => {
@@ -101,6 +132,29 @@ export default function NewCampaign() {
           </label>
           <div className="text-sm bg-violet-50 text-primary rounded-lg px-3 py-2">
             匹配客户：<b>{matched ?? "…"}</b> 人 / 全部 {facets.total} 人
+          </div>
+          {/* P2-9: 分群预设保存/加载 */}
+          <div className="border-t border-line/60 pt-3 mt-1 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <input className="input !w-auto flex-1 min-w-[180px]" placeholder="命名当前分群（如：高价值江浙沪）"
+                     value={presetName} onChange={(e) => setPresetName(e.target.value)} />
+              <button className="btn" onClick={savePreset} disabled={!presetName.trim() || savingPreset}>
+                {savingPreset ? "保存中…" : "💾 保存当前分群"}
+              </button>
+            </div>
+            {presets.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="text-ink3">已保存预设：</span>
+                {presets.map((p) => (
+                  <div key={p.id} className="flex items-center gap-1 bg-blue-50 rounded-full pl-3 pr-1 py-0.5">
+                    <button onClick={() => loadPreset(p)} className="text-accent hover:underline" title={`匹配 ${p.matchCount} 人`}>
+                      {p.name} <span className="text-ink3">({p.matchCount})</span>
+                    </button>
+                    <button onClick={() => deletePreset(p.id)} className="text-ink3 hover:text-danger px-1" title="删除">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
