@@ -8,20 +8,21 @@ export const AUDIENCES: Record<string, { label: string; desc: string; where: Pri
   delivered_not_clicked:{ label: "已触达未点击", desc: "送达但没点，换文案再唤醒",   where: { sendStatus: "sent", visited: false } },
 };
 
-export async function retargetCustomerIds(fromCampaignId: string, audience: string): Promise<string[]> {
+export async function retargetCustomerIds(fromCampaignId: string, audience: string, tenantId?: string): Promise<string[]> {
   const a = AUDIENCES[audience];
   if (!a) return [];
   const rs = await db.recipient.findMany({
-    where: { campaignId: fromCampaignId, customerId: { not: null }, ...a.where },
+    where: { ...(tenantId ? { tenantId } : {}), campaignId: fromCampaignId, customerId: { not: null }, ...a.where },
     select: { customerId: true },
   });
   return [...new Set(rs.map((r) => r.customerId!).filter(Boolean))];
 }
 
 export async function audienceCounts(fromCampaignId: string) {
+  const campaign = await db.campaign.findUnique({ where: { id: fromCampaignId }, select: { tenantId: true } });
   const entries = await Promise.all(Object.entries(AUDIENCES).map(async ([key, a]) => {
     const ids = await db.recipient.findMany({
-      where: { campaignId: fromCampaignId, customerId: { not: null }, ...a.where }, select: { customerId: true },
+      where: { ...(campaign?.tenantId ? { tenantId: campaign.tenantId } : {}), campaignId: fromCampaignId, customerId: { not: null }, ...a.where }, select: { customerId: true },
     });
     return [key, { label: a.label, desc: a.desc, count: new Set(ids.map((r) => r.customerId)).size }];
   }));

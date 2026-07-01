@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smsUnitCost } from "@/lib/roi";
+import { currentTenantId } from "@/lib/tenant";
 export const dynamic = "force-dynamic";
 
 /**
@@ -11,9 +12,11 @@ export const dynamic = "force-dynamic";
  *   ROI = (营收 - 成本) / 成本
  */
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const c = await db.campaign.findUnique({ where: { id: params.id } });
+  const tenantId = currentTenantId();
+  const c = await db.campaign.findFirst({ where: { tenantId, id: params.id } });
+  if (!c) return NextResponse.json({ error: "not found" }, { status: 404 });
   const recipients = await db.recipient.findMany({
-    where: { campaignId: params.id },
+    where: { tenantId, campaignId: params.id },
     include: { variant: true },
     orderBy: { createdAt: "asc" },
   });

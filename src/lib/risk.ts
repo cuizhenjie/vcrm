@@ -12,10 +12,10 @@ export function checkRisk(c: { isBlacklist: boolean; province?: string | null })
 }
 
 /** 简单频控：同号 N 天内是否已发送过（MVP 用 DB 计数；生产建议 Redis） */
-export async function recentlySent(mobile: string, days = 1): Promise<boolean> {
+export async function recentlySent(mobile: string, days = 1, tenantId?: string): Promise<boolean> {
   const since = new Date(Date.now() - days * 86400_000);
   const n = await db.recipient.count({
-    where: { mobile, sendStatus: "sent", createdAt: { gte: since } },
+    where: { mobile, sendStatus: "sent", createdAt: { gte: since }, ...(tenantId ? { tenantId } : {}) },
   });
   return n > 0;
 }

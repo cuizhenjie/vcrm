@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { emitOutboundEvent } from "@/lib/events";
 
 export async function GET(_: NextRequest, { params }: { params: { code: string } }) {
   const link = await db.shortLink.findUnique({ where: { code: params.code } });
@@ -8,6 +9,7 @@ export async function GET(_: NextRequest, { params }: { params: { code: string }
   await db.shortLink.update({ where: { id: link.id }, data: { clicks: { increment: 1 } } });
   if (link.trackId) {
     await db.recipient.update({ where: { id: link.trackId }, data: { visited: true } }).catch(() => {});
+    await emitOutboundEvent("message.clicked", { recipientId: link.trackId, shortCode: link.code }, link.tenantId).catch(() => {});
   }
   return NextResponse.redirect(link.targetUrl);
 }

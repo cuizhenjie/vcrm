@@ -2,17 +2,19 @@ import { db } from "@/lib/db";
 import { leadCounts } from "@/lib/leads";
 import { Topbar } from "@/components/ui";
 import Link from "next/link";
+import { currentTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  const tenantId = currentTenantId();
   const [customers, valid, campaigns, sent, visited, templates, leads] = await Promise.all([
-    db.customer.count(),
-    db.customer.count({ where: { isBlacklist: false } }),
-    db.campaign.count(),
-    db.recipient.count({ where: { sendStatus: "sent" } }),
-    db.recipient.count({ where: { visited: true } }),
-    db.smsTemplate.count({ where: { reportStatus: "approved" } }),
+    db.customer.count({ where: { tenantId } }),
+    db.customer.count({ where: { tenantId, isBlacklist: false } }),
+    db.campaign.count({ where: { tenantId } }),
+    db.recipient.count({ where: { tenantId, sendStatus: "sent" } }),
+    db.recipient.count({ where: { tenantId, visited: true } }),
+    db.smsTemplate.count({ where: { tenantId, reportStatus: "approved" } }),
     leadCounts(),
   ]);
   const cards = [

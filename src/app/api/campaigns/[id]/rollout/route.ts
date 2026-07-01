@@ -2,25 +2,27 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processCampaign } from "@/lib/tasks";
 import { abSignificance } from "@/lib/significance";
+import { currentTenantId } from "@/lib/tenant";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const id = params.id;
+  const tenantId = currentTenantId();
   const body = await req.json().catch(() => ({}));
   const force = !!body.force;
-  const campaign = await db.campaign.findUnique({ where: { id } });
+  const campaign = await db.campaign.findFirst({ where: { id, tenantId } });
   if (!campaign?.autoRollout) return NextResponse.json({ error: "非自动放量任务" }, { status: 400 });
   if (campaign.rolledOut) return NextResponse.json({ error: "已放量" }, { status: 400 });
 
   // 测试阶段须全部发送完成
-  const testPending = await db.recipient.count({ where: { campaignId: id, phase: "test", sendStatus: "pending" } });
+  const testPending = await db.recipient.count({ where: { tenantId, campaignId: id, phase: "test", sendStatus: "pending" } });
   if (testPending > 0) return NextResponse.json({ error: "测试阶段尚未发送完成" }, { status: 400 });
 
   // 选赢家：测试阶段 CTR + 统计显著性检验
-  const variants = await db.campaignVariant.findMany({ where: { campaignId: id } });
+  const variants = await db.campaignVariant.findMany({ where: { tenantId, campaignId: id } });
   const scored = await Promise.all(variants.map(async (v) => {
     const [sent, visited] = await Promise.all([
-      db.recipient.count({ where: { campaignId: id, variantId: v.id, phase: "test", sendStatus: "sent" } }),
-      db.recipient.count({ where: { campaignId: id, variantId: v.id, phase: "test", visited: true } }),
+      db.recipient.count({ where: { tenantId, campaignId: id, variantId: v.id, phase: "test", sendStatus: "sent" } }),
+      db.recipient.count({ where: { tenantId, campaignId: id, variantId: v.id, phase: "test", visited: true } }),
     ]);
     return { id: v.id, label: v.label, sent, visited };
   }));
@@ -35,7 +37,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // 剩余放量名单全部投赢家变体
   const rolled = await db.recipient.updateMany({
-    where: { campaignId: id, phase: "rollout", sendStatus: "pending" },
+    where: { tenantId, campaignId: id, phase: "rollout", sendStatus: "pending" },
     data: { variantId: winner.id },
   });
   await db.campaign.update({ where: { id }, data: { rolledOut: true } });

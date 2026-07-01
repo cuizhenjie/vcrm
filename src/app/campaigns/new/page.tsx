@@ -63,7 +63,7 @@ export default function NewCampaign() {
   const segment = { provinces, carriers, onlyIntent };
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch("/api/customers/segment", { method: "POST", body: JSON.stringify(segment) })
+      fetch("/api/customers/segment", { method: "POST", body: JSON.stringify({ provinces, carriers, onlyIntent }) })
         .then((r) => r.json()).then((d) => setMatched(d.count));
     }, 250);
     return () => clearTimeout(t);

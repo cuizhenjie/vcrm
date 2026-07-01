@@ -2,6 +2,7 @@
 // 关联客户名 / 来源活动名 / 最新一条上行回复原文，供销售消费转化
 import { db } from "./db";
 import type { Prisma } from "@prisma/client";
+import { currentTenantId } from "./tenant";
 
 export const FOLLOW_STATUSES = ["new", "following", "won", "lost"] as const;
 export type FollowStatus = (typeof FOLLOW_STATUSES)[number];
@@ -59,6 +60,9 @@ export interface LeadItem {
   dealValue: number | null;
   followNote: string | null;
   followedAt: string | null;
+  assignedTo: string | null;
+  nextFollowAt: string | null;
+  followResult: string | null;
   visited: boolean;
   sendStatus: string;
   createdAt: string;
@@ -93,9 +97,9 @@ export function normalizeIntent(input?: string | null): string | undefined {
 }
 
 /** 关键词命中上行回复正文 → 对应 recipientId 列表 */
-async function recipientIdsByReply(q: string): Promise<string[]> {
+async function recipientIdsByReply(q: string, tenantId: string): Promise<string[]> {
   const rows = await db.moMessage.findMany({
-    where: { recipientId: { not: null }, content: { contains: q } },
+    where: { tenantId, recipientId: { not: null }, content: { contains: q } },
     select: { recipientId: true },
     orderBy: [{ receivedAt: "desc" }, { id: "desc" }],
     take: REPLY_MATCH_LIMIT,
@@ -105,7 +109,8 @@ async function recipientIdsByReply(q: string): Promise<string[]> {
 
 /** 组装线索查询条件（关键词跨客户名/手机/活动/备注/回复正文） */
 async function buildWhere(filters: LeadFilters): Promise<Prisma.RecipientWhereInput> {
-  const and: Prisma.RecipientWhereInput[] = [{ intentTag: { not: null } }, { intentTag: { not: "" } }];
+  const tenantId = currentTenantId();
+  const and: Prisma.RecipientWhereInput[] = [{ tenantId }, { intentTag: { not: null } }, { intentTag: { not: "" } }];
 
   const intent = normalizeIntent(filters.intent);
   if (intent) and.push({ intentTag: intent });
@@ -115,7 +120,7 @@ async function buildWhere(filters: LeadFilters): Promise<Prisma.RecipientWhereIn
 
   const q = filters.q?.trim();
   if (q) {
-    const replyIds = await recipientIdsByReply(q);
+    const replyIds = await recipientIdsByReply(q, tenantId);
     const or: Prisma.RecipientWhereInput[] = [
       { mobile: { contains: q } },
       { followNote: { contains: q } },
@@ -164,6 +169,9 @@ function toLeadItem(row: RecipientRow, replies: Map<string, LeadReply>): LeadIte
     dealValue: row.dealValue ?? null,
     followNote: row.followNote ?? null,
     followedAt: row.followedAt?.toISOString() ?? null,
+    assignedTo: row.assignedTo ?? null,
+    nextFollowAt: row.nextFollowAt?.toISOString() ?? null,
+    followResult: row.followResult ?? null,
     visited: row.visited,
     sendStatus: row.sendStatus,
     createdAt: row.createdAt.toISOString(),

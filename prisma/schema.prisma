@@ -9,167 +9,406 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// SaaS 租户：商业化后的数据隔离与计费归属单位
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  status    String   @default("active") // active | suspended | closed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// 租户成员：v1 先承载角色与审计身份，登录仍兼容现有单管理员
+model AppUser {
+  id           String       @id @default(cuid())
+  tenantId     String       @default("default_tenant")
+  email        String
+  name         String?
+  role         String       @default("owner") // owner | admin | sales | viewer
+  passwordHash String?
+  status       String       @default("active")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  sessions     AppSession[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+/// SaaS 会话：为后续多用户登录预留；当前 cookie 会话仍可回落到默认租户
+model AppSession {
+  id        String    @id @default(cuid())
+  tenantId  String    @default("default_tenant")
+  userId    String?
+  user      AppUser?  @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, expiresAt])
+}
+
+/// 套餐：短信额度、成员数、单价均落为可配置数据
+model Plan {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  name          String
+  monthlyFeeFen Int            @default(0)
+  smsIncluded   Int            @default(0)
+  unitPriceFen  Int            @default(5)
+  maxUsers      Int            @default(3)
+  createdAt     DateTime       @default(now())
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                 String    @id @default(cuid())
+  tenantId           String    @default("default_tenant")
+  planId             String?
+  plan               Plan?     @relation(fields: [planId], references: [id])
+  status             String    @default("trialing") // trialing | active | past_due | canceled
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime?
+  autoRenew          Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId, status])
+}
+
+/// 短信额度账本：正数充值/赠送，负数预扣/消耗/调整
+model CreditLedger {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default_tenant")
+  delta        Int
+  balanceAfter Int?
+  reason       String // seed_grant | send_reserve | refund | manual_adjust
+  refType      String?
+  refId        String?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, refType, refId])
+}
+
+/// 用量明细：用于账单、毛利和客户对账
+model UsageRecord {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default_tenant")
+  type         String   @default("sms") // sms | mms | flash | check
+  quantity     Int      @default(1)
+  unitCostFen  Int      @default(5)
+  totalCostFen Int      @default(5)
+  status       String   @default("reserved") // reserved | billable | refunded
+  refType      String?
+  refId        String?
+  createdAt    DateTime @default(now())
+
+  @@unique([tenantId, type, refType, refId])
+  @@index([tenantId, createdAt])
+}
+
+model Invoice {
+  id          String    @id @default(cuid())
+  tenantId    String    @default("default_tenant")
+  periodStart DateTime
+  periodEnd   DateTime
+  amountFen   Int       @default(0)
+  status      String    @default("draft") // draft | issued | paid | void
+  issuedAt    DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, status])
+}
+
+/// 发送任务：把原进程内发送流程落成可恢复、可观测的任务记录
+model SendJob {
+  id         String    @id @default(cuid())
+  tenantId   String    @default("default_tenant")
+  campaignId String
+  phase      String?
+  status     String    @default("queued") // queued | running | done | stopped | failed
+  total      Int       @default(0)
+  processed  Int       @default(0)
+  lastError  String?
+  lockedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([tenantId, campaignId])
+  @@index([tenantId, status])
+}
+
+/// 每条号码的发送尝试：幂等键、通道响应、失败原因都可审计
+model MessageAttempt {
+  id                String    @id @default(cuid())
+  tenantId          String    @default("default_tenant")
+  recipientId       String
+  recipient         Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  provider          String
+  providerMessageId String?
+  idempotencyKey    String    @unique
+  attemptNo         Int       @default(1)
+  status            String    @default("started") // started | sent | failed | filtered
+  requestJson       String?
+  responseJson      String?
+  errorCode         String?
+  createdAt         DateTime  @default(now())
+
+  @@index([tenantId, recipientId])
+  @@index([tenantId, status])
+}
+
+/// 全局抑制名单：退订、投诉、合规手动拉黑统一走这里
+model Suppression {
+  id        String   @id @default(cuid())
+  tenantId  String   @default("default_tenant")
+  mobile    String
+  reason    String // unsubscribe | complaint | manual | empty
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, mobile])
+  @@index([tenantId, reason])
+}
+
+/// 外部 CRM/Webhook 推送配置
+model WebhookEndpoint {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("default_tenant")
+  name       String
+  url        String
+  secret     String?
+  eventTypes String // JSON array
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, status])
+}
+
+/// 待投递外部事件：线索、成交、退订、失败等
+model OutboundEvent {
+  id          String    @id @default(cuid())
+  tenantId    String    @default("default_tenant")
+  type        String
+  payloadJson String
+  status      String    @default("pending") // pending | delivered | failed
+  attempts    Int       @default(0)
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  deliveredAt DateTime?
+
+  @@index([tenantId, status, createdAt])
+}
+
 /// 客户名单
 model Customer {
-  id           String   @id @default(cuid())
-  name         String?
-  mobile       String
-  province     String?
-  carrier      String?  // 移动/联通/电信
-  isBlacklist  Boolean  @default(false)
-  videoCapable String?  // unknown | yes | no
-  vars         String?  // 自定义变量列 JSON(千人千面)
-  checkStatus  String   @default("pending") // pending | checking | done
-  batchId      String?
-  batch        CustomerBatch? @relation(fields: [batchId], references: [id])
-  recipients   Recipient[]
-  createdAt    DateTime @default(now())
+  id             String         @id @default(cuid())
+  tenantId       String         @default("default_tenant")
+  name           String?
+  mobile         String
+  province       String?
+  carrier        String? // 移动/联通/电信
+  isBlacklist    Boolean        @default(false)
+  consentSource  String? // opt-in 来源/批次说明
+  consentAt      DateTime?
+  unsubscribedAt DateTime?
+  videoCapable   String? // unknown | yes | no
+  vars           String? // 自定义变量列 JSON(千人千面)
+  checkStatus    String         @default("pending") // pending | checking | done
+  batchId        String?
+  batch          CustomerBatch? @relation(fields: [batchId], references: [id])
+  recipients     Recipient[]
+  createdAt      DateTime       @default(now())
+
   @@index([mobile])
+  @@index([tenantId, mobile])
 }
 
 /// 导入批次
 model CustomerBatch {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
+  tenantId    String     @default("default_tenant")
   name        String
-  total       Int      @default(0)
-  valid       Int      @default(0)
-  checkStatus String   @default("pending")
+  total       Int        @default(0)
+  valid       Int        @default(0)
+  checkStatus String     @default("pending")
   customers   Customer[]
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
 }
 
 /// 短信/彩信模板（需报备）
 model SmsTemplate {
-  id           String   @id @default(cuid())
-  name         String
-  type         String   @default("text") // text | mms | flash
-  content      String   // 支持 {name} {link} 等变量占位
-  landingUrl   String?  // {link} 短链指向的落地页
-  reportStatus String   @default("draft") // draft | pending | approved | rejected
-  createdAt    DateTime @default(now())
-  campaigns    Campaign[]
-  variants     CampaignVariant[]
+  id                String            @id @default(cuid())
+  tenantId          String            @default("default_tenant")
+  name              String
+  type              String            @default("text") // text | mms | flash
+  content           String // 支持 {name} {link} 等变量占位
+  landingUrl        String? // {link} 短链指向的落地页
+  reportStatus      String            @default("draft") // draft | pending | approved | rejected
+  reportSubmittedAt DateTime?
+  reportReviewedAt  DateTime?
+  rejectReason      String?
+  createdAt         DateTime          @default(now())
+  campaigns         Campaign[]
+  variants          CampaignVariant[]
+
+  @@index([tenantId, reportStatus])
 }
 
 /// 短链（访问追踪）
 model ShortLink {
   id        String   @id @default(cuid())
+  tenantId  String   @default("default_tenant")
   code      String   @unique
   targetUrl String
-  trackId   String?  // 关联 recipient.id，用于回填“已访问”
+  trackId   String? // 关联 recipient.id，用于回填“已访问”
   clicks    Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@index([tenantId, trackId])
 }
 
 /// 触达任务
 model Campaign {
-  id          String   @id @default(cuid())
-  name        String
-  type        String   @default("text_sms") // text_sms | video_sms | flash
-  templateId  String?
-  template    SmsTemplate? @relation(fields: [templateId], references: [id])
-  status      String   @default("draft") // draft | checking | pending | sending | done | stopped
-  scheduledAt DateTime?
-  total       Int      @default(0)
-  valid       Int      @default(0)
-  sent        Int      @default(0)
-  quietHours  Boolean  @default(true)  // 避扰时段(夜间不发)
-  autoRollout Boolean  @default(false) // 是否自动放量
-  testRatio   Int      @default(20)    // 测试流量占比(%)
-  rolledOut   Boolean  @default(false) // 是否已放量
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  recipients  Recipient[]
-  variants    CampaignVariant[]
+  id               String            @id @default(cuid())
+  tenantId         String            @default("default_tenant")
+  name             String
+  type             String            @default("text_sms") // text_sms | video_sms | flash
+  templateId       String?
+  template         SmsTemplate?      @relation(fields: [templateId], references: [id])
+  status           String            @default("draft") // draft | checking | pending | sending | done | stopped
+  complianceStatus String            @default("pending") // pending | passed | blocked
+  blockedReason    String?
+  scheduledAt      DateTime?
+  total            Int               @default(0)
+  valid            Int               @default(0)
+  sent             Int               @default(0)
+  quietHours       Boolean           @default(true) // 避扰时段(夜间不发)
+  autoRollout      Boolean           @default(false) // 是否自动放量
+  testRatio        Int               @default(20) // 测试流量占比(%)
+  rolledOut        Boolean           @default(false) // 是否已放量
+  createdBy        String?
+  createdAt        DateTime          @default(now())
+  recipients       Recipient[]
+  variants         CampaignVariant[]
+
+  @@index([tenantId, status])
 }
 
 /// 任务-号码明细
 model Recipient {
-  id             String   @id @default(cuid())
-  campaignId     String
-  campaign       Campaign @relation(fields: [campaignId], references: [id])
-  customerId     String?
-  customer       Customer? @relation(fields: [customerId], references: [id])
-  variantId      String?
-  variant        CampaignVariant? @relation(fields: [variantId], references: [id])
-  mobile         String
-  extno          String   @unique @default(cuid()) // 业务流水号(全局唯一)，回执/上行回填靠它
+  id              String           @id @default(cuid())
+  tenantId        String           @default("default_tenant")
+  campaignId      String
+  campaign        Campaign         @relation(fields: [campaignId], references: [id])
+  customerId      String?
+  customer        Customer?        @relation(fields: [customerId], references: [id])
+  variantId       String?
+  variant         CampaignVariant? @relation(fields: [variantId], references: [id])
+  mobile          String
+  extno           String           @unique @default(cuid()) // 业务流水号(全局唯一)，回执/上行回填靠它
   // ⚠ 真实联麓 extno 多为数字扩展号且有长度限制，对接时按文档替换生成规则
-  sendStatus     String   @default("pending") // pending | sent | failed | filtered
-  deliveryStatus String?  // delivered | undelivered | unknown
-  failReason     String?
-  phase          String   @default("test") // test | rollout
-  intentTag      String?  // 互动意图标签（上行匹配后写入），有值即视为线索
-  followStatus   String   @default("new") // new 待跟进 | following 跟进中 | won 已成交 | lost 已流失
-  dealValue      Float?   // 成交金额(元)，仅 followStatus=won 计入 ROI 营收
-  followNote     String?  // 销售跟进备注
-  followedAt     DateTime? // 最近一次跟进操作时间
-  visited        Boolean  @default(false) // 短链是否被点击
-  remark         String?  // 业务字段 JSON 字符串
-  createdAt      DateTime @default(now())
-  reports        DeliveryReport[]
-  logs           FollowLog[]
+  sendStatus      String           @default("pending") // pending | sent | failed | filtered
+  deliveryStatus  String? // delivered | undelivered | unknown
+  failReason      String?
+  phase           String           @default("test") // test | rollout
+  intentTag       String? // 互动意图标签（上行匹配后写入），有值即视为线索
+  followStatus    String           @default("new") // new 待跟进 | following 跟进中 | won 已成交 | lost 已流失
+  dealValue       Float? // 成交金额(元)，仅 followStatus=won 计入 ROI 营收
+  followNote      String? // 销售跟进备注
+  followedAt      DateTime? // 最近一次跟进操作时间
+  assignedTo      String? // 销售负责人/坐席
+  nextFollowAt    DateTime? // 下一次跟进提醒
+  followResult    String? // invalid | no_answer | interested | deal | lost 等
+  visited         Boolean          @default(false) // 短链是否被点击
+  remark          String? // 业务字段 JSON 字符串
+  createdAt       DateTime         @default(now())
+  reports         DeliveryReport[]
+  logs            FollowLog[]
+  messageAttempts MessageAttempt[]
+
   @@index([campaignId])
+  @@index([tenantId, mobile])
   @@index([followStatus]) // 漏斗成交档 / 线索状态汇总
   @@index([intentTag, followStatus]) // 线索池筛选主路径
+  @@index([tenantId, intentTag, followStatus])
 }
 
 /// 线索跟进操作日志（审计每次状态/备注变更）
 model FollowLog {
   id          String    @id @default(cuid())
+  tenantId    String    @default("default_tenant")
   recipientId String
   recipient   Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  fromStatus  String?   // 状态变更前（仅改备注时为空）
-  toStatus    String?   // 状态变更后
-  note        String?   // 操作摘要（备注变更 / 成交额变更等，非 followNote 镜像）
+  fromStatus  String? // 状态变更前（仅改备注时为空）
+  toStatus    String? // 状态变更后
+  note        String? // 操作摘要（备注变更 / 成交额变更等，非 followNote 镜像）
   actor       String    @default("运营") // 操作人（当前单一共享登录，预留多用户）
   createdAt   DateTime  @default(now())
+
   @@index([recipientId, createdAt])
+  @@index([tenantId, createdAt])
   @@index([createdAt])
 }
 
 /// A/B 测试变体：一个活动可挂多个文案变体，按权重分流
 model CampaignVariant {
-  id         String   @id @default(cuid())
+  id         String       @id @default(cuid())
+  tenantId   String       @default("default_tenant")
   campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  label      String   @default("A")
+  campaign   Campaign     @relation(fields: [campaignId], references: [id])
+  label      String       @default("A")
   templateId String?
   template   SmsTemplate? @relation(fields: [templateId], references: [id])
-  weight     Int      @default(1)
+  weight     Int          @default(1)
   recipients Recipient[]
+
   @@index([campaignId])
+  @@index([tenantId, campaignId])
 }
 
 /// 状态报告（联麓回调写入）
 model DeliveryReport {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
+  tenantId    String    @default("default_tenant")
   recipientId String
   recipient   Recipient @relation(fields: [recipientId], references: [id])
   status      String
-  reportedAt  DateTime @default(now())
+  reportedAt  DateTime  @default(now())
+
+  @@index([tenantId, reportedAt])
 }
 
 /// 上行回复（联麓 MO 回调写入）
 model MoMessage {
   id          String   @id @default(cuid())
+  tenantId    String   @default("default_tenant")
   recipientId String?
   mobile      String
   content     String
-  matchedAttr String?  // positive | negative | default
+  matchedAttr String? // positive | negative | default
   receivedAt  DateTime @default(now())
+
   @@index([recipientId, receivedAt]) // 线索取「最新回复」用
+  @@index([tenantId, mobile, receivedAt])
 }
 
 /// 分群预设：保存常用客户分群条件（按归属地/运营商/历史意向），下次建活动一键复用
 model SegmentPreset {
-  id          String   @id @default(cuid())
-  name        String   // 运营自命名（如"高价值江浙沪用户"）
-  batchId     String?  // 关联导入批次
-  provinces   String?  // JSON 数组 ["江苏", "浙江"]
-  carriers    String?  // JSON 数组 ["移动", "联通"]
-  onlyIntent  Boolean  @default(false)
-  matchCount  Int      @default(0)  // 保存时记录匹配客户数（仅参考，不强制）
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  tenantId   String   @default("default_tenant")
+  name       String // 运营自命名（如"高价值江浙沪用户"）
+  batchId    String? // 关联导入批次
+  provinces  String? // JSON 数组 ["江苏", "浙江"]
+  carriers   String? // JSON 数组 ["移动", "联通"]
+  onlyIntent Boolean  @default(false)
+  matchCount Int      @default(0) // 保存时记录匹配客户数（仅参考，不强制）
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
   @@index([createdAt])
 }

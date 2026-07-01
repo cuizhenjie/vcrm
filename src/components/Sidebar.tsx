@@ -8,6 +8,7 @@ const groups = [
   { label: "内容与话术", icon: "✎", items: [{ href: "/templates", name: "短信模板" }] },
   { label: "营销触达", icon: "📣", items: [{ href: "/campaigns", name: "触达任务" }, { href: "/leads", name: "线索池" }] },
   { label: "数据中心", icon: "📊", items: [{ href: "/analytics", name: "转化概览" }] },
+  { label: "商业化", icon: "￥", items: [{ href: "/settings", name: "租户与计费" }] },
 ];
 
 export default function Sidebar() {

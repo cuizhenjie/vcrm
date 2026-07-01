@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getProvider } from "@/lib/sms";
+import { currentTenantId } from "@/lib/tenant";
 
 // body = { batchId }
 export async function POST(req: NextRequest) {
+  const tenantId = currentTenantId();
   const { batchId } = await req.json();
-  const customers = await db.customer.findMany({ where: batchId ? { batchId } : { checkStatus: "pending" } });
+  const customers = await db.customer.findMany({ where: batchId ? { tenantId, batchId } : { tenantId, checkStatus: "pending" } });
   if (customers.length === 0) return NextResponse.json({ checked: 0 });
 
   const results = await getProvider().checkNumbers(customers.map((c) => c.mobile));
@@ -20,6 +22,6 @@ export async function POST(req: NextRequest) {
                isBlacklist: empty ? true : c.isBlacklist },
     });
   }
-  if (batchId) await db.customerBatch.update({ where: { id: batchId }, data: { checkStatus: "done", valid } });
+  if (batchId) await db.customerBatch.updateMany({ where: { tenantId, id: batchId }, data: { checkStatus: "done", valid } });
   return NextResponse.json({ checked: customers.length, valid });
 }

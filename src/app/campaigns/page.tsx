@@ -1,11 +1,13 @@
 import { db } from "@/lib/db";
 import { Topbar, Tag } from "@/components/ui";
 import Link from "next/link";
+import { currentTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export default async function Campaigns() {
-  const list = await db.campaign.findMany({ orderBy: { createdAt: "desc" }, include: { template: true } });
+  const tenantId = currentTenantId();
+  const list = await db.campaign.findMany({ where: { tenantId }, orderBy: { createdAt: "desc" }, include: { template: true } });
   return (
     <>
       <Topbar title="触达任务" sub="营销触达">

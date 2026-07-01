@@ -2,6 +2,7 @@
 // 金额用元(Float)，在边界 round 到 2 位；生产财务级建议整数分或 Decimal。
 import { db } from "./db";
 import type { Prisma } from "@prisma/client";
+import { currentTenantId } from "./tenant";
 
 const DEFAULT_UNIT_COST = 0.05;
 const CAMPAIGN_POOL = 50; // 仅对最近 N 个活动算 ROI 排行，与现有看板口径一致
@@ -69,17 +70,18 @@ export async function computeRoi(scope: Prisma.RecipientWhereInput = {}): Promis
 }
 
 export function orgRoi(): Promise<OrgRoi> {
-  return computeRoi({});
+  return computeRoi({ tenantId: currentTenantId() });
 }
 
 export function campaignRoiOne(campaignId: string): Promise<OrgRoi> {
-  return computeRoi({ campaignId });
+  return computeRoi({ tenantId: currentTenantId(), campaignId });
 }
 
 /** 活动维度 ROI 排行：用 groupBy 一次性聚合 sent/visited/won，避免 N+1 */
 export async function campaignRoi(limit = 8): Promise<CampaignRoi[]> {
   const unitCost = smsUnitCost();
   const campaigns = await db.campaign.findMany({
+    where: { tenantId: currentTenantId() },
     orderBy: { createdAt: "desc" },
     take: CAMPAIGN_POOL,
     select: { id: true, name: true },

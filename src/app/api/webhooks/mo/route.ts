@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyLianluSignature } from "@/lib/auth";
+import { isUnsubscribeText, suppressMobile } from "@/lib/compliance";
+import { emitOutboundEvent } from "@/lib/events";
+import { currentTenantId } from "@/lib/tenant";
 
 // 话术编排关键词（MVP 内置，可改为读 interaction_tpl）
 const POSITIVE = /了解|明白|是的|好的|可以|需要|有兴趣/;
@@ -26,11 +29,18 @@ export async function POST(req: NextRequest) {
   const recipient = extno
     ? await db.recipient.findUnique({ where: { extno } })
     : await db.recipient.findFirst({ where: { mobile }, orderBy: { createdAt: "desc" } });
+  const tenantId = recipient?.tenantId ?? currentTenantId();
+  const unsubscribed = isUnsubscribeText(content);
 
-  await db.moMessage.create({ data: { recipientId: recipient?.id ?? null, mobile, content, matchedAttr: matched } });
+  await db.moMessage.create({ data: { tenantId, recipientId: recipient?.id ?? null, mobile, content, matchedAttr: matched } });
   if (recipient) {
     const tag = matched === "positive" ? "有意向" : matched === "negative" ? "无意向" : "未表态";
     await db.recipient.update({ where: { id: recipient.id }, data: { intentTag: tag } });
+    await emitOutboundEvent("lead.updated", { recipientId: recipient.id, mobile, tag, content }, tenantId);
   }
-  return NextResponse.json({ ok: true, matched });
+  if (unsubscribed) {
+    await suppressMobile({ tenantId, mobile, reason: "unsubscribe", source: "mo_webhook" });
+    await emitOutboundEvent("customer.unsubscribed", { recipientId: recipient?.id ?? null, mobile, content }, tenantId);
+  }
+  return NextResponse.json({ ok: true, matched, unsubscribed });
 }

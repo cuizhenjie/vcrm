@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { buildSegmentWhere } from "@/lib/segment";
 import { retargetCustomerIds } from "@/lib/retarget";
+import { currentTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const tenantId = currentTenantId();
   const list = await db.campaign.findMany({
+    where: { tenantId },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { recipients: true } } },
   });
@@ -15,16 +18,17 @@ export async function GET() {
 
 // 新建任务：body = { name, type, templateId, batchId? }  从有效客户生成 recipients
 export async function POST(req: NextRequest) {
+  const tenantId = currentTenantId();
   const { name, type, templateId, batchId, variants, autoRollout, testRatio, segment, scheduledAt, quietHours, source } = await req.json();
   if (!name) return NextResponse.json({ error: "任务名称必填" }, { status: 400 });
 
   let customers;
   if (source?.fromCampaignId && source?.audience) {
-    const ids = await retargetCustomerIds(source.fromCampaignId, source.audience);
-    customers = await db.customer.findMany({ where: { id: { in: ids }, isBlacklist: false } });
+    const ids = await retargetCustomerIds(source.fromCampaignId, source.audience, tenantId);
+    customers = await db.customer.findMany({ where: { tenantId, id: { in: ids }, isBlacklist: false } });
     if (customers.length === 0) return NextResponse.json({ error: "该再营销人群为空" }, { status: 400 });
   } else {
-    const where = segment ? buildSegmentWhere(segment) : { isBlacklist: false, ...(batchId ? { batchId } : {}) };
+    const where = segment ? buildSegmentWhere({ ...segment, tenantId }) : { tenantId, isBlacklist: false, ...(batchId ? { batchId } : {}) };
     customers = await db.customer.findMany({ where });
     if (customers.length === 0) return NextResponse.json({ error: "该分群下无有效客户" }, { status: 400 });
   }
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
   const when = scheduledAt ? new Date(scheduledAt) : null;
   const status = when && when.getTime() > Date.now() ? "scheduled" : "pending";
   const campaign = await db.campaign.create({
-    data: { name, type: type ?? "text_sms", templateId: templateId ?? null,
+    data: { tenantId, name, type: type ?? "text_sms", templateId: templateId ?? null,
             status, scheduledAt: when, quietHours: quietHours !== false,
             total: customers.length, valid: customers.length,
             autoRollout: !!autoRollout, testRatio: ratio },
@@ -45,7 +49,7 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
       const cv = await db.campaignVariant.create({
-        data: { campaignId: campaign.id, label: v.label ?? String.fromCharCode(65 + i),
+        data: { tenantId, campaignId: campaign.id, label: v.label ?? String.fromCharCode(65 + i),
                 templateId: v.templateId ?? null, weight: Math.max(1, Number(v.weight) || 1) },
       });
       pool.push(...Array(cv.weight).fill(cv.id)); // 按权重展开
@@ -60,6 +64,7 @@ export async function POST(req: NextRequest) {
       const inTest = i < testCount;
       return {
         campaignId: campaign.id, customerId: c.id, mobile: c.mobile,
+        tenantId,
         phase: useRollout ? (inTest ? "test" : "rollout") : "test",
         // 测试组按权重分流；放量组先留空，等赢家确定后再投
         variantId: pool.length ? (inTest ? pool[i % pool.length] : null) : null,

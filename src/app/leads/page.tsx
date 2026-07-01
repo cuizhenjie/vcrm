@@ -14,6 +14,9 @@ interface Lead {
   dealValue: number | null;
   followNote: string | null;
   followedAt: string | null;
+  assignedTo: string | null;
+  nextFollowAt: string | null;
+  followResult: string | null;
   visited: boolean;
   createdAt: string;
   latestReply: { content: string; matchedAttr: string | null; receivedAt: string } | null;
@@ -35,7 +38,16 @@ interface FollowLog {
 }
 
 const FOLLOW_LABELS: Record<FollowStatus, string> = { new: "待跟进", following: "跟进中", won: "已成交", lost: "已流失" };
+const RESULT_LABELS = ["", "interested", "no_answer", "invalid", "deal", "lost"];
+const RESULT_TEXT: Record<string, string> = { interested: "有意向", no_answer: "未接通", invalid: "无效", deal: "成交", lost: "流失" };
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("zh-CN") : "—");
+const toLocalInput = (iso?: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "";
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 16);
+};
 const logTitle = (log: FollowLog) =>
   log.fromStatus && log.toStatus
     ? `${FOLLOW_LABELS[log.fromStatus as FollowStatus] ?? log.fromStatus} → ${FOLLOW_LABELS[log.toStatus as FollowStatus] ?? log.toStatus}`
@@ -55,6 +67,8 @@ export default function LeadsPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [deals, setDeals] = useState<Record<string, string>>({});
+  const [owners, setOwners] = useState<Record<string, string>>({});
+  const [nextTimes, setNextTimes] = useState<Record<string, string>>({});
   const [logLead, setLogLead] = useState<Lead | null>(null);
   const [logs, setLogs] = useState<FollowLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -83,6 +97,8 @@ export default function LeadsPage() {
       setTotalPages(data.totalPages ?? 1);
       setNotes(Object.fromEntries((data.items ?? []).map((r: Lead) => [r.id, r.followNote ?? ""])));
       setDeals(Object.fromEntries((data.items ?? []).map((r: Lead) => [r.id, r.dealValue == null ? "" : String(r.dealValue)])));
+      setOwners(Object.fromEntries((data.items ?? []).map((r: Lead) => [r.id, r.assignedTo ?? ""])));
+      setNextTimes(Object.fromEntries((data.items ?? []).map((r: Lead) => [r.id, toLocalInput(r.nextFollowAt)])));
     } catch (e) {
       alert(e instanceof Error ? e.message : "加载失败");
     } finally {
@@ -94,7 +110,14 @@ export default function LeadsPage() {
 
   const exportHref = useMemo(() => `/api/leads/export?${params(false).toString()}`, [params]);
 
-  const patch = async (id: string, body: { followStatus?: string; followNote?: string; dealValue?: number | null }) => {
+  const patch = async (id: string, body: {
+    followStatus?: string;
+    followNote?: string;
+    dealValue?: number | null;
+    assignedTo?: string;
+    nextFollowAt?: string | null;
+    followResult?: string | null;
+  }) => {
     setSaving(id);
     try {
       const res = await fetch(`/api/leads/${id}`, {
@@ -129,6 +152,18 @@ export default function LeadsPage() {
     const rounded = next === null ? null : Math.round((next + Number.EPSILON) * 100) / 100;
     if (rounded === (lead.dealValue ?? null)) return;
     void patch(lead.id, { dealValue: rounded });
+  };
+
+  const saveOwner = (lead: Lead) => {
+    const next = (owners[lead.id] ?? "").trim();
+    if (next === (lead.assignedTo ?? "")) return;
+    void patch(lead.id, { assignedTo: next });
+  };
+
+  const saveNextTime = (lead: Lead) => {
+    const next = (nextTimes[lead.id] ?? "").trim();
+    if (next === toLocalInput(lead.nextFollowAt)) return;
+    void patch(lead.id, { nextFollowAt: next || null });
   };
 
   const search = (e: React.FormEvent) => { e.preventDefault(); setPage(1); setQ(qInput.trim()); };
@@ -200,7 +235,7 @@ export default function LeadsPage() {
         </form>
 
         <div className="card overflow-x-auto">
-          <table className="w-full min-w-[1200px]">
+          <table className="w-full min-w-[1480px]">
             <thead>
               <tr>
                 <th className="th">客户</th>
@@ -208,7 +243,10 @@ export default function LeadsPage() {
                 <th className="th">来源活动</th>
                 <th className="th">意图</th>
                 <th className="th">最新回复</th>
+                <th className="th">负责人</th>
+                <th className="th">下次跟进</th>
                 <th className="th">跟进状态</th>
+                <th className="th">结果</th>
                 <th className="th">成交额(元)</th>
                 <th className="th">跟进备注</th>
                 <th className="th">跟进时间</th>
@@ -227,6 +265,26 @@ export default function LeadsPage() {
                     {lead.latestReply && <div className="text-xs text-ink3 mt-0.5">{fmt(lead.latestReply.receivedAt)}</div>}
                   </td>
                   <td className="td">
+                    <input
+                      className="input !h-8 !w-[96px]"
+                      value={owners[lead.id] ?? ""}
+                      placeholder="负责人"
+                      disabled={saving === lead.id}
+                      onChange={(e) => setOwners((m) => ({ ...m, [lead.id]: e.target.value }))}
+                      onBlur={() => saveOwner(lead)}
+                    />
+                  </td>
+                  <td className="td">
+                    <input
+                      type="datetime-local"
+                      className="input !h-8 !w-[170px]"
+                      value={nextTimes[lead.id] ?? ""}
+                      disabled={saving === lead.id}
+                      onChange={(e) => setNextTimes((m) => ({ ...m, [lead.id]: e.target.value }))}
+                      onBlur={() => saveNextTime(lead)}
+                    />
+                  </td>
+                  <td className="td">
                     <select
                       className="input !h-8 !w-[104px]"
                       value={lead.followStatus}
@@ -236,6 +294,16 @@ export default function LeadsPage() {
                       {(Object.keys(FOLLOW_LABELS) as FollowStatus[]).map((v) => (
                         <option key={v} value={v}>{FOLLOW_LABELS[v]}</option>
                       ))}
+                    </select>
+                  </td>
+                  <td className="td">
+                    <select
+                      className="input !h-8 !w-[96px]"
+                      value={lead.followResult ?? ""}
+                      disabled={saving === lead.id}
+                      onChange={(e) => patch(lead.id, { followResult: e.target.value || null })}
+                    >
+                      {RESULT_LABELS.map((v) => <option key={v} value={v}>{v ? RESULT_TEXT[v] ?? v : "—"}</option>)}
                     </select>
                   </td>
                   <td className="td">
@@ -266,7 +334,7 @@ export default function LeadsPage() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td className="td text-ink3" colSpan={10}>{loading ? "加载中…" : "暂无线索 — 客户上行回复命中意图后会出现在这里"}</td></tr>
+                <tr><td className="td text-ink3" colSpan={13}>{loading ? "加载中…" : "暂无线索 — 客户上行回复命中意图后会出现在这里"}</td></tr>
               )}
             </tbody>
           </table>

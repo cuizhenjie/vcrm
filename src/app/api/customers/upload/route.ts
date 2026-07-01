@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
+import { currentTenantId } from "@/lib/tenant";
 
 // 识别表头中的手机号/姓名列；其余列作为千人千面变量
 const MOBILE_KEYS = ["手机号", "手机", "电话", "号码", "mobile", "phone"];
@@ -11,6 +12,7 @@ const pick = (row: Record<string, any>, keys: string[]) => {
 };
 
 export async function POST(req: NextRequest) {
+  const tenantId = currentTenantId();
   const form = await req.formData();
   const file = form.get("file") as File | null;
   const batchName = (form.get("batchName") as string) || "Excel 导入";
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest) {
   const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
   if (rows.length === 0) return NextResponse.json({ error: "表格为空或无表头" }, { status: 400 });
 
-  const batch = await db.customerBatch.create({ data: { name: batchName, total: rows.length } });
+  const batch = await db.customerBatch.create({ data: { tenantId, name: batchName, total: rows.length } });
   let valid = 0;
   for (const row of rows) {
     const m = pick(row, MOBILE_KEYS);
@@ -34,7 +36,8 @@ export async function POST(req: NextRequest) {
       vars[h] = String(v);
     }
     await db.customer.create({
-      data: { name: n?.val ?? null, mobile: m.val, batchId: batch.id,
+      data: { tenantId, name: n?.val ?? null, mobile: m.val, batchId: batch.id,
+              consentSource: "file_import", consentAt: new Date(),
               vars: Object.keys(vars).length ? JSON.stringify(vars) : null },
     });
     valid++;

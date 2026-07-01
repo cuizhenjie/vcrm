@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 export type Segment = {
+  tenantId?: string;
   batchId?: string;
   provinces?: string[];
   carriers?: string[];
@@ -9,6 +10,7 @@ export type Segment = {
 
 export function buildSegmentWhere(seg?: Segment): Prisma.CustomerWhereInput {
   const where: Prisma.CustomerWhereInput = { isBlacklist: false };
+  if (seg?.tenantId) where.tenantId = seg.tenantId;
   if (seg?.batchId) where.batchId = seg.batchId;
   if (seg?.provinces?.length) where.province = { in: seg.provinces };
   if (seg?.carriers?.length) where.carrier = { in: seg.carriers };

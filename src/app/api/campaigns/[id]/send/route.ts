@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processCampaign } from "@/lib/tasks";
+import { currentTenantId } from "@/lib/tenant";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
-  const campaign = await db.campaign.findUnique({ where: { id: params.id } });
+  const tenantId = currentTenantId();
+  const campaign = await db.campaign.findFirst({ where: { id: params.id, tenantId } });
   if (!campaign) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   // 定时发送：开始时间在未来 → 置为 scheduled，交给调度器

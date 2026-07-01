@@ -3,6 +3,7 @@
 // 成交即代表有意向)。由此保证逐档单调递减(环比≤100%)，且在缺送达回执时优雅降级。
 import { db } from "./db";
 import type { Prisma } from "@prisma/client";
+import { currentTenantId } from "./tenant";
 
 export interface FunnelStage {
   key: string;
@@ -25,7 +26,7 @@ const DELIVERED_OR_DEEPER: Prisma.RecipientWhereInput[] = [
 
 // campaignId 存在 → 仅该活动；否则组织级全量(行为与之前完全一致)
 export async function conversionFunnel(campaignId?: string): Promise<FunnelStage[]> {
-  const scope: Prisma.RecipientWhereInput = campaignId ? { campaignId } : {};
+  const scope: Prisma.RecipientWhereInput = campaignId ? { tenantId: currentTenantId(), campaignId } : { tenantId: currentTenantId() };
   const scoped = (...parts: Prisma.RecipientWhereInput[]): Prisma.RecipientWhereInput => ({ AND: [scope, SENT, ...parts] });
 
   const [sent, delivered, clicked, intent, won] = await Promise.all([

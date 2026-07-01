@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getSessionSecret, verifySession, SESSION_COOKIE } from "@/lib/auth";
+import { getEdgeSessionSecret, verifyEdgeSession, SESSION_COOKIE } from "@/lib/edge-auth";
 
 // 公开路径（无需登录）：登录、外部回调、短链跳转、cron
 const PUBLIC_PREFIX = ["/login", "/api/login", "/api/webhooks", "/api/cron", "/s/"];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (PUBLIC_PREFIX.some((p) => pathname === p || pathname.startsWith(p))) return NextResponse.next();
 
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const secret = getSessionSecret();
-  if (verifySession(token, secret)) return NextResponse.next();
+  const secret = getEdgeSessionSecret();
+  if (await verifyEdgeSession(token, secret)) return NextResponse.next();
 
   if (pathname.startsWith("/api")) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = req.nextUrl.clone();

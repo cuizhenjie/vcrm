@@ -1,6 +1,7 @@
 // 跟进操作日志仓储层：读取线索时间线 / 全局最近动态，并提供统一序列化
 import { db } from "./db";
 import type { Prisma } from "@prisma/client";
+import { currentTenantId } from "./tenant";
 
 export const GLOBAL_FEED_LIMIT = 20;
 export const TIMELINE_LIMIT = 100;
@@ -51,8 +52,9 @@ export function serializeFollowLog(row: FollowLogRow): FollowLogItem {
 /** 有 recipientId → 该线索时间线(最多 TIMELINE_LIMIT)；否则 → 全局最近动态(GLOBAL_FEED_LIMIT) */
 export async function listFollowLogs(recipientId?: string | null): Promise<FollowLogItem[]> {
   const id = recipientId?.trim();
+  const tenantId = currentTenantId();
   const rows = await db.followLog.findMany({
-    where: id ? { recipientId: id } : {},
+    where: id ? { tenantId, recipientId: id } : { tenantId },
     orderBy: { createdAt: "desc" },
     take: id ? TIMELINE_LIMIT : GLOBAL_FEED_LIMIT,
     include: logInclude,
