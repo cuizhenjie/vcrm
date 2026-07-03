@@ -22,8 +22,9 @@ type DeliveryReportItem = {
   status?: string;
 };
 
+// 联麓回执默认字段：流水号 taskId（与发送返回一致），状态 status
 const REPORTS_FIELD = process.env.LIANLU_DELIVERY_REPORTS_FIELD?.trim() || "reports";
-const MESSAGE_ID_FIELD = process.env.LIANLU_DELIVERY_MESSAGE_ID_FIELD?.trim() || "messageId";
+const MESSAGE_ID_FIELD = process.env.LIANLU_DELIVERY_MESSAGE_ID_FIELD?.trim() || "taskId";
 const EXTLNO_FIELD = process.env.LIANLU_DELIVERY_EXTNO_FIELD?.trim() || "extno";
 const MOBILE_FIELD = process.env.LIANLU_DELIVERY_MOBILE_FIELD?.trim() || "mobile";
 const STATUS_FIELD = process.env.LIANLU_DELIVERY_STATUS_FIELD?.trim() || "status";
@@ -32,7 +33,8 @@ const STATUS_FIELD = process.env.LIANLU_DELIVERY_STATUS_FIELD?.trim() || "status
 function normalizeReport(item: any): DeliveryReportItem {
   if (!item || typeof item !== "object") return {};
   return {
-    messageId: pickStr(item, [MESSAGE_ID_FIELD, "messageId", "MessageId", "MsgId", "TaskId"]),
+    // 优先 taskId（联麓流水号），兼容 messageId/TaskId 等
+    messageId: pickStr(item, [MESSAGE_ID_FIELD, "taskId", "TaskId", "messageId", "MessageId", "MsgId"]),
     extno: pickStr(item, [EXTLNO_FIELD, "extno", "ExtNo", "Tag", "tag"]),
     mobile: pickStr(item, [MOBILE_FIELD, "mobile", "Mobile", "PhoneNumber", "phone"]),
     status: pickStr(item, [STATUS_FIELD, "status", "Status", "ReportStatus", "Stat"]),
@@ -71,7 +73,10 @@ export async function POST(req: NextRequest) {
       mobile: r.mobile,
     });
     if (!recipient) continue;
-    const status = r.status === "DELIVRD" || r.status === "delivered" ? "delivered" : "undelivered";
+    // 联麓送达状态兼容多种取值：DELIVRD/delivered/0/00 表示送达成功
+    const raw = String(r.status ?? "").trim();
+    const deliveredSet = new Set(["DELIVRD", "DELIVERED", "0", "00", "SUCCESS"]);
+    const status = deliveredSet.has(raw.toUpperCase()) ? "delivered" : "undelivered";
     await db.$transaction(async (tx) => {
       await tx.recipient.update({ where: { id: recipient.id }, data: { deliveryStatus: status } });
       const exists = await tx.deliveryReport.findFirst({

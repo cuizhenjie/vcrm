@@ -29,16 +29,17 @@ export async function GET() {
     webhookUrlsReachable: null as boolean | null, // 需要联麓控制台配置回调地址，此处仅提示
   };
 
-  // 4. 联调清单（拿到联麓文档后逐项确认）
+  // 4. 联调清单（默认值已按联麓普通短信 API 文档配置，仅需联调确认）
   const checklist = isLianlu
     ? [
-        "发送路径 LIANLU_SEND_PATH（默认 /sms/product/sendSMS，需文档确认）",
-        "成功判定 LIANLU_SUCCESS_FIELD/LIANLU_SUCCESS_VALUE（默认 code==0，需文档确认）",
-        "流水号字段 LIANLU_MESSAGE_ID_FIELD（必须配置，否则回执无法关联 → 闭环断裂）",
-        "回执字段 LIANLU_DELIVERY_MESSAGE_ID_FIELD/STATUS_FIELD（按真实回执结构配置）",
-        "Webhook 签名密钥 LIANLU_WEBHOOK_SECRET（联麓控制台配置回调后下发）",
-        "Webhook 回调地址：在联麓控制台填入本站 /api/webhooks/delivery 和 /api/webhooks/mo",
-        "extno/Tag 长度限制：真实联麓 Tag 可能有长度/格式限制，超长会被通道拒收",
+        "✓ 发送路径 LIANLU_SEND_PATH（默认 /sms/trade/normal/send，已按文档配置）",
+        "✓ 成功判定 LIANLU_SUCCESS_FIELD=status / VALUE=00（已按文档配置）",
+        "✓ 流水号 LIANLU_MESSAGE_ID_FIELD=taskId（已按文档配置，回执按 taskId 关联）",
+        "? 视频短信路径 LIANLU_MMS_PATH（默认 /sms/trade/video/send 按命名规律推测，需联调确认）",
+        "? 回执字段 LIANLU_DELIVERY_MESSAGE_ID_FIELD（默认 taskId，按真实回执结构确认）",
+        "! Webhook 签名密钥 LIANLU_WEBHOOK_SECRET（联麓控制台配置回调后下发）",
+        "! Webhook 回调地址：在联麓控制台填入本站 /api/webhooks/delivery 和 /api/webhooks/mo",
+        "! 签名方式：当前按 HMAC-SHA256 实现，联调时按联麓推送报告文档确认签名算法",
       ]
     : ["当前为 mock 通道，配置 SMS_PROVIDER=lianlu 切换真实通道"];
 
