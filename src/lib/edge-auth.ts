@@ -1,5 +1,17 @@
 export const SESSION_COOKIE = "vcrm_session";
 
+export interface EdgeSessionIdentity {
+  userId: string;
+  tenantId: string;
+  role: string;
+}
+
+const FALLBACK_IDENTITY: EdgeSessionIdentity = {
+  userId: "env-admin",
+  tenantId: "default_tenant",
+  role: "owner",
+};
+
 export function getEdgeSessionSecret(): string {
   const s = process.env.AUTH_SECRET;
   if (process.env.NODE_ENV === "production") {
@@ -33,15 +45,35 @@ async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
   return bytesToHex(sig);
 }
 
-/** Edge Runtime session 校验；与 Node 端 signSession 的 token 格式兼容。 */
-export async function verifyEdgeSession(token: string | undefined, secret: string): Promise<boolean> {
-  if (!token || !secret) return false;
+/**
+ * Edge Runtime session 校验；与 Node 端 signSession 的 token 格式兼容。
+ * v2 格式 expiry.userId.tenantId.role.sig → 解析出身份信息。
+ * 旧格式 expiry.nonce.sig → 返回 fallback 身份（单管理员兼容）。
+ * 返回 null 表示校验失败/过期。
+ */
+export async function verifyEdgeSession(
+  token: string | undefined,
+  secret: string,
+): Promise<EdgeSessionIdentity | null> {
+  if (!token || !secret) return null;
   const parts = token.split(".");
-  if (parts.length !== 3) return false;
-  const [expiry, nonce, sig] = parts;
-  const exp = Number(expiry);
-  if (!Number.isFinite(exp) || exp < Date.now()) return false;
-  const expected = await hmacSha256Hex(secret, `${expiry}.${nonce}`);
-  return constantTimeEqual(sig, expected);
+  // v2：expiry.userId.tenantId.role.sig（5 段，cuid/role 不含点）
+  if (parts.length === 5) {
+    const [expiry, userId, tenantId, role, sig] = parts;
+    const exp = Number(expiry);
+    if (!Number.isFinite(exp) || exp < Date.now()) return null;
+    const expected = await hmacSha256Hex(secret, `${expiry}.${userId}.${tenantId}.${role}`);
+    if (!constantTimeEqual(sig, expected)) return null;
+    return { userId, tenantId, role };
+  }
+  // 旧格式：expiry.nonce.sig
+  if (parts.length === 3) {
+    const [expiry, nonce, sig] = parts;
+    const exp = Number(expiry);
+    if (!Number.isFinite(exp) || exp < Date.now()) return null;
+    const expected = await hmacSha256Hex(secret, `${expiry}.${nonce}`);
+    if (!constantTimeEqual(sig, expected)) return null;
+    return FALLBACK_IDENTITY;
+  }
+  return null;
 }
-

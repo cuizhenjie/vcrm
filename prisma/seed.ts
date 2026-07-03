@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 const db = new PrismaClient();
 
 const DEFAULT_TENANT_ID = "default_tenant";
@@ -20,10 +21,13 @@ async function main() {
       data: { tenantId: DEFAULT_TENANT_ID, planId: plan.id, status: "trialing" },
     });
   }
+  // 默认管理员：密码取 SEED_ADMIN_PASSWORD（默认 admin），生产部署后请立即改密或注册新租户
+  const adminPwd = process.env.SEED_ADMIN_PASSWORD ?? "admin";
+  const passwordHash = await bcrypt.hash(adminPwd, 10);
   await db.appUser.upsert({
     where: { tenantId_email: { tenantId: DEFAULT_TENANT_ID, email: "admin@vcrm.local" } },
-    update: { name: "运营管理员", role: "owner", status: "active" },
-    create: { tenantId: DEFAULT_TENANT_ID, email: "admin@vcrm.local", name: "运营管理员", role: "owner" },
+    update: { name: "运营管理员", role: "owner", status: "active", passwordHash },
+    create: { tenantId: DEFAULT_TENANT_ID, email: "admin@vcrm.local", name: "运营管理员", role: "owner", passwordHash, status: "active" },
   });
   const hasSeedGrant = await db.creditLedger.count({
     where: { tenantId: DEFAULT_TENANT_ID, reason: "seed_grant" },

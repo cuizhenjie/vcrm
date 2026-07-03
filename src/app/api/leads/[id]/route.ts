@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeFollowStatus, type FollowStatus } from "@/lib/leads";
-import { actorName } from "@/lib/tenant";
+import { actorName, currentTenantId } from "@/lib/tenant";
 import { emitOutboundEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
@@ -97,8 +97,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const result = await db.$transaction(async (tx) => {
-    const current = await tx.recipient.findUnique({
-      where: { id: params.id },
+    // 租户隔离：必须同时匹配 id 与当前租户，防止跨租户越权读写(IDOR)
+    const tid = currentTenantId();
+    const current = await tx.recipient.findFirst({
+      where: { id: params.id, tenantId: tid },
       select: { tenantId: true, mobile: true, followStatus: true, followNote: true, dealValue: true, assignedTo: true, nextFollowAt: true, followResult: true },
     });
     if (!current) return { notFound: true as const };
@@ -132,7 +134,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (followResultChanged) data.followResult = nextFollowResult ?? null;
 
     const lead = await tx.recipient.update({
-      where: { id: params.id },
+      where: { id: params.id }, // 已通过上面 findFirst 确认属于当前租户
       data,
       select: { id: true, tenantId: true, mobile: true, followStatus: true, followNote: true, dealValue: true, assignedTo: true, nextFollowAt: true, followResult: true, followedAt: true },
     });
