@@ -3,24 +3,24 @@ import { db } from "./db";
 /**
  * 回执/上行回调 → Recipient 关联。
  *
- * 设计说明（v2，修复 extno 闭环断裂）：
- * 早期实现用 Recipient.extno（cuid 随机串）做回执/MO 关联键，但 extno 与真实通道侧
- * 没有任何对应关系——真实联麓回执里带回的是「通道流水号 messageId」，而非我们生成的 cuid。
- * 这导致真实通道下所有送达回执、退订、意图回填全部静默失败。
+ * 设计说明（v3，修复跨租户误关联）：
+ * 早期用 Recipient.extno 关联，但 extno 与通道侧无关（闭环断裂）。
+ * v2 加了 mobile 兜底，但 mobile 在多租户下不唯一——同一号码可能属于多个租户，
+ * 无 tenantId 的 mobile 查询会跨租户误关联（回执/退款/退订写错租户）。
  *
- * 现在的关联优先级（与发送侧落库对齐，见 tasks.ts）：
- *   1. messageId（通道返回的流水号）→ MessageAttempt.providerMessageId → recipientId
- *   2. extno（向后兼容：仍是发送时的 Tag，部分通道回执会原样带回）
- *   3. mobile（兜底：取最近一条该号码的 recipient）
+ * 现在的关联优先级（webhook 无 session，无法获取 tenantId，故不用 mobile 兜底）：
+ *   1. messageId（通道流水号，全局唯一）→ MessageAttempt.providerMessageId → recipientId
+ *   2. extno（发送时作为 Tag 透传，Recipient.extno 有 @unique 约束保证唯一）
  *
- * 三者都缺失时返回 null，由调用方按 tenantId 兜底处理。
+ * 两者都缺失时返回 null。mobile 仅在调用方明确知道 tenantId 时由其自行处理，
+ * 本函数不做无 tenantId 的 mobile 查询。
  */
 export async function findRecipientByCallback(input: {
   messageId?: string | null;
   extno?: string | null;
-  mobile?: string | null;
+  mobile?: string | null; // 接收但不再用于无 tenantId 的查询
 }) {
-  const { messageId, extno, mobile } = input;
+  const { messageId, extno } = input;
 
   // 1. 通道流水号（最可靠：发送成功时已落 MessageAttempt.providerMessageId）
   if (messageId) {
@@ -34,18 +34,9 @@ export async function findRecipientByCallback(input: {
     }
   }
 
-  // 2. extno（向后兼容：发送时作为 Tag 透传，部分通道回执会带回）
+  // 2. extno（Recipient.extno 有 @unique 约束，不会跨租户误关联）
   if (extno) {
     const recipient = await db.recipient.findUnique({ where: { extno } });
-    if (recipient) return recipient;
-  }
-
-  // 3. mobile 兜底（取最近一条）
-  if (mobile) {
-    const recipient = await db.recipient.findFirst({
-      where: { mobile },
-      orderBy: { createdAt: "desc" },
-    });
     if (recipient) return recipient;
   }
 

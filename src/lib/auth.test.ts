@@ -35,7 +35,7 @@ describe("session token v2（携带身份）", () => {
   });
 });
 
-describe("session token 旧格式兼容", () => {
+describe("session token 旧格式已废弃（安全：防权限提升）", () => {
   it("未传 identity 时签发 fallback 身份的 v2 token（回落 default_tenant/owner）", () => {
     const token = signSession(SECRET);
     const parsed = verifySession(token, SECRET);
@@ -44,8 +44,8 @@ describe("session token 旧格式兼容", () => {
     expect(parsed?.role).toBe("owner");
   });
 
-  it("能验证已存在的旧格式 token（expiry.nonce.sig → fallback 身份）", () => {
-    // 手工构造一个旧格式 token：expiry.nonce.sig，sig = HMAC(secret, expiry.nonce)
+  it("旧格式 token（expiry.nonce.sig）已废弃，校验返回 null", () => {
+    // 构造一个签名正确的旧格式 token，应被拒绝（防旧 token 越权拿 owner）
     const crypto = require("crypto");
     const expiry = Date.now() + 60000;
     const nonce = "abc12345";
@@ -53,10 +53,7 @@ describe("session token 旧格式兼容", () => {
     const sig = crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
     const oldToken = `${payload}.${sig}`;
     expect(oldToken.split(".")).toHaveLength(3);
-    const parsed = verifySession(oldToken, SECRET);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.tenantId).toBe("default_tenant");
-    expect(parsed?.role).toBe("owner");
+    expect(verifySession(oldToken, SECRET)).toBeNull();
   });
 });
 

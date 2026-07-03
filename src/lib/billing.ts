@@ -89,8 +89,13 @@ export async function refundSmsCredit(
     orderBy: { createdAt: "desc" },
   });
   if (!usage) return false;
+  // 条件更新保证幂等：仅未退款→已退款，防并发回调重复退款
+  const updated = await client.usageRecord.updateMany({
+    where: { id: usage.id, status: { not: "refunded" } },
+    data: { status: "refunded" },
+  });
+  if (updated.count === 0) return false; // 并发已被处理
   const balance = await smsCreditBalance(input.tenantId, client);
-  await client.usageRecord.update({ where: { id: usage.id }, data: { status: "refunded" } });
   await client.creditLedger.create({
     data: {
       tenantId: input.tenantId,

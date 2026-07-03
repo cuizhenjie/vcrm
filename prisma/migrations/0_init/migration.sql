@@ -363,6 +363,9 @@ CREATE INDEX "AppUser_tenantId_role_idx" ON "AppUser"("tenantId", "role");
 CREATE UNIQUE INDEX "AppUser_tenantId_email_key" ON "AppUser"("tenantId", "email");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "AppUser_email_key" ON "AppUser"("email");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "AppSession_tokenHash_key" ON "AppSession"("tokenHash");
 
 -- CreateIndex

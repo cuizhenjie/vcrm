@@ -63,43 +63,27 @@ export function signSession(secret: string, identity?: SessionIdentity): string 
 /**
  * 校验 session token：未过期 + 签名匹配（防时序攻击）。
  * 返回解析出的身份信息；签名失败或过期返回 null。
- * 同时兼容旧格式（expiry.nonce.sig），此时返回 fallback 身份。
+ *
+ * 安全说明：旧格式（expiry.nonce.sig）已废弃——旧格式校验通过即获得 fallback owner
+ * 身份，是权限提升漏洞。多租户上线后所有 token 必须是 v2 格式（携带身份绑定）。
  */
 export function verifySession(token: string | undefined, secret: string): SessionIdentity | null {
   if (!token) return null;
   const parts = token.split(".");
-  // v2 格式：6 段（expiry.userId.tenantId.role + 32字节hex 的 sig 含 5 个点？不对，sig 是 hex 无点）
-  // 实际：expiry.userId.tenantId.role.sig → split('.') 后 userId/tenantId/role/sig 可能含点？
-  // cuid 不含点，role 不含点 → 共 5 段
-  if (parts.length === 5) {
-    const [expiry, userId, tenantId, role, sig] = parts;
-    const exp = Number(expiry);
-    if (!Number.isFinite(exp) || exp < Date.now()) return null;
-    const payload = `${expiry}.${userId}.${tenantId}.${role}`;
-    const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-    try {
-      if (sig.length !== expected.length) return null;
-      if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
-    } catch {
-      return null;
-    }
-    return { userId, tenantId, role };
+  // 仅接受 v2 格式：expiry.userId.tenantId.role.sig（5 段）
+  if (parts.length !== 5) return null;
+  const [expiry, userId, tenantId, role, sig] = parts;
+  const exp = Number(expiry);
+  if (!Number.isFinite(exp) || exp < Date.now()) return null;
+  const payload = `${expiry}.${userId}.${tenantId}.${role}`;
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  try {
+    if (sig.length !== expected.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
+  } catch {
+    return null;
   }
-  // 旧格式兼容：expiry.nonce.sig（3 段）
-  if (parts.length === 3) {
-    const [expiry, nonce, sig] = parts;
-    const exp = Number(expiry);
-    if (!Number.isFinite(exp) || exp < Date.now()) return null;
-    const expected = crypto.createHmac("sha256", secret).update(`${expiry}.${nonce}`).digest("hex");
-    try {
-      if (sig.length !== expected.length) return null;
-      if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
-    } catch {
-      return null;
-    }
-    return FALLBACK_IDENTITY;
-  }
-  return null;
+  return { userId, tenantId, role };
 }
 
 /** 联麓 Webhook 签名校验（HMAC-SHA256 over raw body） */

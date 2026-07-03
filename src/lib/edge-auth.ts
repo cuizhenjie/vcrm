@@ -48,7 +48,7 @@ async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
 /**
  * Edge Runtime session 校验；与 Node 端 signSession 的 token 格式兼容。
  * v2 格式 expiry.userId.tenantId.role.sig → 解析出身份信息。
- * 旧格式 expiry.nonce.sig → 返回 fallback 身份（单管理员兼容）。
+ * 旧格式已废弃（权限提升风险），不再兼容。
  * 返回 null 表示校验失败/过期。
  */
 export async function verifyEdgeSession(
@@ -57,23 +57,11 @@ export async function verifyEdgeSession(
 ): Promise<EdgeSessionIdentity | null> {
   if (!token || !secret) return null;
   const parts = token.split(".");
-  // v2：expiry.userId.tenantId.role.sig（5 段，cuid/role 不含点）
-  if (parts.length === 5) {
-    const [expiry, userId, tenantId, role, sig] = parts;
-    const exp = Number(expiry);
-    if (!Number.isFinite(exp) || exp < Date.now()) return null;
-    const expected = await hmacSha256Hex(secret, `${expiry}.${userId}.${tenantId}.${role}`);
-    if (!constantTimeEqual(sig, expected)) return null;
-    return { userId, tenantId, role };
-  }
-  // 旧格式：expiry.nonce.sig
-  if (parts.length === 3) {
-    const [expiry, nonce, sig] = parts;
-    const exp = Number(expiry);
-    if (!Number.isFinite(exp) || exp < Date.now()) return null;
-    const expected = await hmacSha256Hex(secret, `${expiry}.${nonce}`);
-    if (!constantTimeEqual(sig, expected)) return null;
-    return FALLBACK_IDENTITY;
-  }
-  return null;
+  if (parts.length !== 5) return null; // 仅接受 v2 格式
+  const [expiry, userId, tenantId, role, sig] = parts;
+  const exp = Number(expiry);
+  if (!Number.isFinite(exp) || exp < Date.now()) return null;
+  const expected = await hmacSha256Hex(secret, `${expiry}.${userId}.${tenantId}.${role}`);
+  if (!constantTimeEqual(sig, expected)) return null;
+  return { userId, tenantId, role };
 }

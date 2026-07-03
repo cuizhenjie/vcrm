@@ -33,6 +33,7 @@ model AppUser {
   sessions     AppSession[]
 
   @@unique([tenantId, email])
+  @@unique([email])
   @@index([tenantId, role])
 }
 

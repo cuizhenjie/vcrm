@@ -27,7 +27,9 @@ export async function createRechargeOrder(input: {
     throw new Error(`${provider.name} 支付渠道未配置`);
   }
 
-  // 创建订单（先入库拿到 outTradeNo = order.id）
+  // 创建订单：outTradeNo 用独立 cuid 一次性生成（避免两步回填的竞态/空串阻塞）
+  const { randomUUID } = await import("crypto");
+  const outTradeNo = `R${Date.now()}${randomUUID().slice(0, 8)}`;
   const order = await db.paymentOrder.create({
     data: {
       tenantId: input.tenantId,
@@ -35,12 +37,10 @@ export async function createRechargeOrder(input: {
       amountFen,
       smsQuantity: quantity,
       provider: provider.name,
-      outTradeNo: "", // 占位，下面回填
+      outTradeNo,
       status: "pending",
     },
   });
-  const outTradeNo = order.id;
-  await db.paymentOrder.update({ where: { id: order.id }, data: { outTradeNo } });
 
   const notifyUrl = `${process.env.APP_BASE_URL || ""}/api/payment/callback/${provider.name}`;
   const res = await provider.createOrder({
@@ -95,17 +95,20 @@ export async function handlePaymentCallback(
     return { status: 200, body: provider.successResponse() };
   }
 
-  // 金额校验（防伪造）
-  if (amountFen !== undefined && amountFen !== order.amountFen) {
+  // 金额强制校验（防伪造回调）：渠道必须回传金额且必须匹配
+  if (amountFen == null || amountFen !== order.amountFen) {
     return { status: 400, body: JSON.stringify({ error: "amount mismatch" }) };
   }
 
-  // 入账：标记 paid + 加额度（同一事务）
+  // 入账：用条件更新保证幂等（仅 pending→paid），防并发回调重复入账
   await db.$transaction(async (tx) => {
-    await tx.paymentOrder.update({
-      where: { id: order.id },
+    // 条件更新：where 同时限定 status=pending，并发时只有一个事务能成功
+    const updated = await tx.paymentOrder.updateMany({
+      where: { id: order.id, status: "pending" },
       data: { status: "paid", tradeNo, paidAt: new Date() },
     });
+    if (updated.count === 0) return; // 已被并发处理，跳过入账
+
     const balance = await smsCreditBalance(order.tenantId, tx);
     await tx.creditLedger.create({
       data: {
