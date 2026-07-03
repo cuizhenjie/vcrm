@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { db } from "@/lib/db";
 import { currentTenantId } from "@/lib/tenant";
 
@@ -11,6 +11,40 @@ const pick = (row: Record<string, any>, keys: string[]) => {
   return k ? { key: k, val: String(row[k]).trim() } : null;
 };
 
+/** 解析上传的 Excel/CSV 为行数组（首行作为表头）。 */
+async function parseRows(file: File): Promise<Record<string, any>[]> {
+  const buf = Buffer.from(await file.arrayBuffer());
+  const wb = new ExcelJS.Workbook();
+  // CSV 用 csv.read，其余用 load（exceljs 的 .xlsx 读取入口）
+  const isCsv = /\.csv$/i.test(file.name) || file.type === "text/csv";
+  if (isCsv) {
+    // exceljs CSV 读取需要一个可读流；Node 下用 stream.Readable 包装 Buffer
+    const { Readable } = await import("node:stream");
+    await wb.csv.read(Readable.from(buf));
+  } else {
+    // 类型断言绕过 @types/node 版本间 Buffer 泛型差异(exceljs 依赖较旧类型)
+    await wb.xlsx.load(buf as any);
+  }
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+  const rows: Record<string, any>[] = [];
+  let headers: string[] = [];
+  ws.eachRow((row, rowIdx) => {
+    const values = (row.values as any[]).slice(1); // values[0] 恒为 undefined
+    if (rowIdx === 1) {
+      headers = values.map((v) => (v == null ? "" : String(v)).trim());
+      return;
+    }
+    const obj: Record<string, any> = {};
+    values.forEach((v, i) => {
+      const h = headers[i];
+      if (h) obj[h] = v == null ? "" : String(v);
+    });
+    rows.push(obj);
+  });
+  return rows;
+}
+
 export async function POST(req: NextRequest) {
   const tenantId = currentTenantId();
   const form = await req.formData();
@@ -18,9 +52,7 @@ export async function POST(req: NextRequest) {
   const batchName = (form.get("batchName") as string) || "Excel 导入";
   if (!file) return NextResponse.json({ error: "未收到文件" }, { status: 400 });
 
-  const wb = XLSX.read(Buffer.from(await file.arrayBuffer()));
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+  const rows = await parseRows(file);
   if (rows.length === 0) return NextResponse.json({ error: "表格为空或无表头" }, { status: 400 });
 
   const batch = await db.customerBatch.create({ data: { tenantId, name: batchName, total: rows.length } });

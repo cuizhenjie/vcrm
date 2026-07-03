@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyLianluSignature } from "@/lib/auth";
+import { requireWebhookSignature } from "@/lib/webhook-guard";
 import { isUnsubscribeText, suppressMobile } from "@/lib/compliance";
 import { emitOutboundEvent } from "@/lib/events";
 import { currentTenantId } from "@/lib/tenant";
@@ -11,17 +11,15 @@ const NEGATIVE = /不|没有|不了解|拒绝|退订|TD/i;
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
+  const guard = requireWebhookSignature(req, rawBody);
+  if (guard) return guard;
 
-  // Webhook 签名校验（与 delivery 路由统一，缺 secret 配置则跳过用于 dev/mock）
-  const appSecret = process.env.LIANLU_WEBHOOK_SECRET ?? "";
-  if (appSecret) {
-    const sig = req.headers.get("x-lianlu-signature");
-    if (!verifyLianluSignature(rawBody, sig, appSecret)) {
-      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-    }
+  let body: any;
+  try {
+    body = JSON.parse(rawBody || "{}");
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
-
-  const body = JSON.parse(rawBody || "{}");
   const { mobile, content, extno } = body;
   if (!mobile || !content) return NextResponse.json({ error: "bad payload" }, { status: 400 });
 

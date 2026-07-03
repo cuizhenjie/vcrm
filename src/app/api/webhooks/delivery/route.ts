@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyLianluSignature } from "@/lib/auth";
+import { requireWebhookSignature } from "@/lib/webhook-guard";
 import { refundSmsCredit } from "@/lib/billing";
 import { emitOutboundEvent } from "@/lib/events";
 
@@ -12,14 +12,15 @@ import { emitOutboundEvent } from "@/lib/events";
  */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
-  const appSecret = process.env.LIANLU_WEBHOOK_SECRET ?? "";
-  if (appSecret) {
-    const sig = req.headers.get("x-lianlu-signature");
-    if (!verifyLianluSignature(rawBody, sig, appSecret)) {
-      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-    }
+  const guard = requireWebhookSignature(req, rawBody);
+  if (guard) return guard;
+
+  let body: any;
+  try {
+    body = JSON.parse(rawBody || "{}");
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
-  const body = JSON.parse(rawBody || "{}");
   const reports: Array<{ extno: string; status: string }> = body.reports ?? (Array.isArray(body) ? body : [body]);
   for (const r of reports) {
     const recipient = await db.recipient.findUnique({ where: { extno: r.extno } });
