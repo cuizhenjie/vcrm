@@ -124,6 +124,34 @@ model Invoice {
   @@index([tenantId, status])
 }
 
+/// 充值订单：单次短信额度购买订单，对接支付渠道（微信/支付宝/mock）
+model PaymentOrder {
+  id           String    @id @default(cuid())
+  tenantId     String    @default("default_tenant")
+  userId       String?
+  // 业务侧：金额(分)、购买的短信条数、套餐代码
+  amountFen    Int
+  smsQuantity  Int
+  planCode     String?
+  // 支付渠道：mock | wechat | alipay
+  provider     String
+  // 渠道侧交易号（微信 transaction_id / 支付宝 trade_no）
+  tradeNo      String?
+  // 商户订单号（发给渠道的 out_trade_no，通常用 id）
+  outTradeNo   String    @unique
+  // 状态：pending | paid | failed | refunded
+  status       String    @default("pending")
+  payUrl       String?
+  rawResponse  String?
+  paidAt       DateTime?
+  failReason   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([provider, status])
+}
+
 /// 发送任务：把原进程内发送流程落成可恢复、可观测的任务记录
 model SendJob {
   id         String    @id @default(cuid())
