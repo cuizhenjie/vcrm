@@ -77,12 +77,25 @@ export async function refundSmsCredit(
   client: Tx,
   input: { tenantId: string; recipientId: string; reason: string },
 ) {
+  // 注意：不限定 type。预扣按活动类型记录(sms/mms/flash)，退款需匹配任意类型，
+  // 否则视频短信/闪信活动的额度永远退不回来。取最近一条未退款的记录。
   const usage = await client.usageRecord.findFirst({
-    where: { tenantId: input.tenantId, type: "sms", refType: "recipient", refId: input.recipientId },
+    where: {
+      tenantId: input.tenantId,
+      refType: "recipient",
+      refId: input.recipientId,
+      status: { not: "refunded" },
+    },
+    orderBy: { createdAt: "desc" },
   });
-  if (!usage || usage.status === "refunded") return false;
+  if (!usage) return false;
+  // 条件更新保证幂等：仅未退款→已退款，防并发回调重复退款
+  const updated = await client.usageRecord.updateMany({
+    where: { id: usage.id, status: { not: "refunded" } },
+    data: { status: "refunded" },
+  });
+  if (updated.count === 0) return false; // 并发已被处理
   const balance = await smsCreditBalance(input.tenantId, client);
-  await client.usageRecord.update({ where: { id: usage.id }, data: { status: "refunded" } });
   await client.creditLedger.create({
     data: {
       tenantId: input.tenantId,

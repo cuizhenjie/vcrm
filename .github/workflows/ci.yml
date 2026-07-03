@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true # MVP 阶段 lint 不阻塞
+
+      - name: Test
+        run: npm test
+        env:
+          # CI 用临时 SQLite，避免 .env 干扰
+          DATABASE_URL: "file:./ci-test.db"
+
+      - name: Build
+        run: npm run build
+        env:
+          # build 期不需要真实密钥，但 instrumentation 在 prod build 会校验
+          AUTH_SECRET: "ci-placeholder-secret-32chars-minimum-aaaa-bbbb"
+          CRON_SECRET: "ci-cron-secret"
+          APP_PASSWORD: "ci-not-admin"

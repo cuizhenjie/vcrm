@@ -6,6 +6,7 @@ import { createShortLink } from "./shortlink";
 import { reserveSmsCredit, InsufficientCreditsError } from "./billing";
 import { contentRiskReason, isSuppressed } from "./compliance";
 import { emitOutboundEvent } from "./events";
+import { inQuietHours } from "./scheduler";
 
 /**
  * 轻量任务处理器（生产版前置骨架）：
@@ -20,6 +21,17 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
   if (!campaign) return;
 
   const tenantId = campaign.tenantId;
+
+  // 合规守卫：活动开启避扰时段(quietHours)时，命中夜间时段不发送，标记 deferred 由 cron 重试。
+  // 对"立即发送"同样生效——防止运营在夜间点立即发送触发违规投递。
+  if (campaign.quietHours && inQuietHours()) {
+    await db.campaign.update({
+      where: { id: campaignId },
+      data: { status: "scheduled", complianceStatus: "deferred", blockedReason: "命中避扰时段，等待 cron 在日间自动重试" },
+    });
+    return;
+  }
+
   const job = await db.sendJob.create({
     data: { tenantId, campaignId, phase, status: "running" },
   });

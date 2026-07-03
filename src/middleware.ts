@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getEdgeSessionSecret, verifyEdgeSession, SESSION_COOKIE } from "@/lib/edge-auth";
 
-// 公开路径（无需登录）：登录、外部回调、短链跳转、cron
-const PUBLIC_PREFIX = ["/login", "/api/login", "/api/webhooks", "/api/cron", "/s/"];
+// 公开路径（无需登录）：登录、注册、外部回调、短链跳转、cron、健康检查、支付回调
+const PUBLIC_PREFIX = ["/login", "/register", "/api/login", "/api/register", "/api/webhooks", "/api/cron", "/api/health", "/api/payment/callback", "/s/"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
