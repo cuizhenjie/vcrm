@@ -9,6 +9,7 @@ import { contentRiskReason, isSuppressed } from "./compliance";
 import { emitOutboundEvent } from "./events";
 import { inQuietHours } from "./scheduler";
 import { safeLog } from "./pii";
+import { resolveSignName } from "./signature-service";
 
 /** 信号量：额度不足时抛出，用于跳出整个活动循环（非单条失败）。 */
 class CampaignAborted extends Error {
@@ -51,6 +52,8 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
   await db.campaign.update({ where: { id: campaignId }, data: { status: "sending" } });
   const provider = getProvider();
   const rate = Number(process.env.SEND_RATE_PER_SEC ?? 20);
+  // 活动级解析签名：模板 signatureId → 租户默认 → 环境变量（多签名支持）
+  const resolvedSign = await resolveSignName(tenantId, campaign.template?.signatureId);
 
   const recipients = await db.recipient.findMany({
     where: { campaignId, sendStatus: "pending", ...(phase ? { phase } : {}) },
@@ -175,10 +178,10 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
 
           const res =
             campaign.type === "video_sms"
-              ? await provider.sendMms({ mobile: r.mobile, templateId: tplObj.id, extno: r.extno })
+              ? await provider.sendMms({ mobile: r.mobile, templateId: tplObj.id, extno: r.extno, signName: resolvedSign })
               : campaign.type === "flash"
-              ? await provider.sendFlash({ mobile: r.mobile, content, extno: r.extno })
-              : await provider.sendText({ mobile: r.mobile, content, extno: r.extno });
+              ? await provider.sendFlash({ mobile: r.mobile, content, extno: r.extno, signName: resolvedSign })
+              : await provider.sendText({ mobile: r.mobile, content, extno: r.extno, signName: resolvedSign });
 
           await db.$transaction(async (tx) => {
             await tx.messageAttempt.update({

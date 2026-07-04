@@ -282,6 +282,23 @@ model CustomerBatch {
   createdAt   DateTime   @default(now())
 }
 
+/// 短信签名（需向通道报备）：多签名管理 + 默认签名 + 报备状态
+model SmsSignature {
+  id               String   @id @default(cuid())
+  tenantId         String   @default("default_tenant")
+  signName         String // 如 【三酷科技】 或 三酷科技（发送时按需补【】）
+  source           String   @default("company") // company | product | website | app | wechat
+  reportStatus     String   @default("draft") // draft | pending | approved | rejected
+  reportSubmittedAt DateTime?
+  reportReviewedAt  DateTime?
+  rejectReason      String?
+  isDefault        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@unique([tenantId, signName])
+  @@index([tenantId, reportStatus])
+}
+
 /// 短信/彩信模板（需报备）
 model SmsTemplate {
   id                String            @id @default(cuid())
@@ -290,6 +307,7 @@ model SmsTemplate {
   type              String            @default("text") // text | mms | flash
   content           String // 支持 {name} {link} 等变量占位
   landingUrl        String? // {link} 短链指向的落地页
+  signatureId       String? // 关联签名（不填则用租户默认签名）
   reportStatus      String            @default("draft") // draft | pending | approved | rejected
   reportSubmittedAt DateTime?
   reportReviewedAt  DateTime?
@@ -453,4 +471,45 @@ model SegmentPreset {
 
   @@index([tenantId, createdAt])
   @@index([createdAt])
+}
+
+/// AI 视频生成任务（火山方舟 Seedance）
+model VideoTask {
+  id         String    @id @default(cuid())
+  tenantId   String    @default("default_tenant")
+  userId     String?
+  // 模型：doubao-seedance-2-0-260128（GA）/ doubao-seedance-2-5（上线后）
+  model      String    @default("doubao-seedance-2-0-260128")
+  prompt     String
+  // 输入参考：image_url / video_url（JSON 数组，多模态参考）
+  referencesJson String?
+  // 参数：resolution(480p/720p/1080p/4k)、duration(秒)、fps、ratio、seed
+  paramsJson String?
+  // 火山方舟任务 ID（cgt-xxx）
+  providerTaskId String?
+  status     String    @default("queued") // queued | running | succeeded | failed
+  videoUrl   String? // 生成成功后的视频 URL（注意：方舟 URL 24h 失效，需转存）
+  thumbnailUrl String?
+  error      String?
+  tokensUsed Int?
+  costFen    Int       @default(0)
+  canvasNodeId String? // 关联画布节点（若从画布触发）
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+/// 创意画布（无限画布）：运营在画布上编排营销内容（文案+图片+视频+AI生成节点）
+model CreativeCanvas {
+  id         String    @id @default(cuid())
+  tenantId   String    @default("default_tenant")
+  name       String    @default("未命名画布")
+  // 节点 + 连线的完整序列化（JSON：{nodes:[], edges:[]}）
+  dataJson   String    @default("{\"nodes\":[],\"edges\":[]}")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([tenantId, updatedAt])
 }
