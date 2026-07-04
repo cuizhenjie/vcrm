@@ -218,6 +218,19 @@ model WebhookEndpoint {
   @@index([tenantId, status])
 }
 
+/// 敏感词库（多租户可配置）：内容审核命中后拦截发送
+model SensitiveWord {
+  id        String   @id @default(cuid())
+  tenantId  String   @default("default_tenant")
+  word      String
+  category  String   @default("general") // general | finance | gambling | medical | ...
+  status    String   @default("active")  // active | inactive
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, word])
+  @@index([tenantId, status, category])
+}
+
 /// 待投递外部事件：线索、成交、退订、失败等
 model OutboundEvent {
   id          String    @id @default(cuid())

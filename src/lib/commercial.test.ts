@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, parseVars } from "./render";
 import { abSignificance } from "./significance";
-import { contentRiskReason, isUnsubscribeText, templateHasUnsubscribe } from "./compliance";
+import { contentRiskReasonSync, isUnsubscribeText, templateHasUnsubscribe } from "./compliance";
 
 describe("template rendering", () => {
   it("renders built-in and custom variables", () => {
@@ -44,11 +44,11 @@ describe("commercial compliance", () => {
 
   it("requires marketing templates to include opt-out copy", () => {
     expect(templateHasUnsubscribe("新品促销，点击购买")).toBe(false);
-    expect(contentRiskReason("新品促销，回TD退订")).toBeNull();
+    expect(contentRiskReasonSync("新品促销，回TD退订")).toBeNull();
   });
 
   it("blocks sensitive wording", () => {
-    expect(contentRiskReason("贷款黑户也包过，回TD退订")).toContain("敏感词");
+    expect(contentRiskReasonSync("贷款黑户也包过，回TD退订")).toContain("敏感词");
   });
 });
 

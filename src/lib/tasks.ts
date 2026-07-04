@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { getProvider } from "./sms";
-import { checkRisk, recentlySent } from "./risk";
+import { checkRisk } from "./risk";
+import { recentlySent, markSent } from "./frequency";
 import { render, parseVars } from "./render";
 import { createShortLink } from "./shortlink";
 import { reserveSmsCredit, InsufficientCreditsError } from "./billing";
@@ -129,7 +130,7 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
             data.link = link.shortUrl;
           }
           const content = render(tpl, data);
-          const contentReason = contentRiskReason(content);
+          const contentReason = await contentRiskReason(content, tenantId);
           if (contentReason) {
             await failBeforeSend(contentReason);
             return;
@@ -198,6 +199,9 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
           });
           if (!res.ok) {
             await emitOutboundEvent("message.failed", { recipientId: r.id, mobile: r.mobile, campaignId, code: res.code }, tenantId);
+          } else {
+            // 发送成功：写入频控标记（Redis 有配则用 Redis，否则仅 DB 记录已够）
+            await markSent(r.mobile, Number(process.env.FREQUENCY_DAYS ?? 1), tenantId);
           }
         })
       );

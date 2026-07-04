@@ -1,7 +1,7 @@
 import type { PaymentProvider } from "./types";
 import { MockPayment } from "./mock";
 import { WechatPayment } from "./wechat";
-import { AlipayPayment } from "./alipay";
+import { AlipayPayment } from "../alipay-sdk";
 
 export type { PaymentProvider, CreateOrderInput, CreateOrderResult, CallbackPayload, VerifyResult } from "./types";
 
