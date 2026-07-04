@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionSecret, signSession, SESSION_COOKIE, SESSION_TTL_SEC } from "@/lib/auth";
 import { loginByCredentials } from "@/lib/user-service";
 import { db } from "@/lib/db";
+import { validate, loginSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +13,16 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const email = String(body.email ?? "").trim();
-  const password = String(body.password ?? "");
+  const checked = validate(loginSchema, body);
+  if (!checked.success) {
+    return NextResponse.json({ error: checked.error }, { status: 400 });
+  }
+  const { email, password } = checked.data;
 
   let identity: { userId: string; tenantId: string; role: string } | null = null;
 
   // 1. 优先走 AppUser 登录
-  if (email && password) {
-    identity = await loginByCredentials(email, password);
-  }
+  identity = await loginByCredentials(email, password);
 
   // 2. 兼容模式：无任何 AppUser 时，用环境变量单管理员密码登录 default_tenant
   if (!identity) {

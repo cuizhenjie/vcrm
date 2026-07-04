@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { buildSegmentWhere } from "@/lib/segment";
 import { retargetCustomerIds } from "@/lib/retarget";
 import { currentTenantId } from "@/lib/tenant";
+import { validate, campaignCreateSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,13 @@ export async function GET() {
   return NextResponse.json(list);
 }
 
-// 新建任务：body = { name, type, templateId, batchId? }  从有效客户生成 recipients
+// 新建任务：校验后从有效客户生成 recipients
 export async function POST(req: NextRequest) {
   const tenantId = currentTenantId();
-  const { name, type, templateId, batchId, variants, autoRollout, testRatio, segment, scheduledAt, quietHours, source } = await req.json();
-  if (!name) return NextResponse.json({ error: "任务名称必填" }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
+  const checked = validate(campaignCreateSchema, body);
+  if (!checked.success) return NextResponse.json({ error: checked.error }, { status: 400 });
+  const { name, type, templateId, batchId, variants, autoRollout, testRatio, segment, scheduledAt, quietHours, source } = checked.data;
 
   let customers;
   if (source?.fromCampaignId && source?.audience) {
@@ -35,17 +38,19 @@ export async function POST(req: NextRequest) {
 
   const ratio = Math.min(90, Math.max(5, Number(testRatio) || 20));
   const when = scheduledAt ? new Date(scheduledAt) : null;
-  const status = when && when.getTime() > Date.now() ? "scheduled" : "pending";
+  // 非法 scheduledAt 会得 Invalid Date，回落为 null（立即发送）而非写入脏值
+  const validWhen = when && Number.isFinite(when.getTime()) ? when : null;
+  const status = validWhen && validWhen.getTime() > Date.now() ? "scheduled" : "pending";
   const campaign = await db.campaign.create({
     data: { tenantId, name, type: type ?? "text_sms", templateId: templateId ?? null,
-            status, scheduledAt: when, quietHours: quietHours !== false,
+            status, scheduledAt: validWhen, quietHours: quietHours !== false,
             total: customers.length, valid: customers.length,
             autoRollout: !!autoRollout, testRatio: ratio },
   });
 
   // A/B：若传入 variants，则创建变体并按权重把收件人分流到各变体
   let pool: string[] = [];
-  if (Array.isArray(variants) && variants.length > 0) {
+  if (variants && variants.length > 0) {
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
       const cv = await db.campaignVariant.create({
@@ -56,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
   }
   const useRollout = !!autoRollout && pool.length > 0;
-  const testCount = useRollout
+  const testCount = useRollout && variants
     ? Math.max(variants.length, Math.ceil(customers.length * ratio / 100))
     : customers.length;
   await db.recipient.createMany({

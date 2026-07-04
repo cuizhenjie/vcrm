@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionSecret, signSession, SESSION_COOKIE, SESSION_TTL_SEC } from "@/lib/auth";
-import { registerTenant, validateCredentials, validateSlug, RegisterError } from "@/lib/user-service";
+import { registerTenant, RegisterError } from "@/lib/user-service";
+import { validate, registerSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -15,19 +16,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const slug = String(body.slug ?? "").trim();
-  const tenantName = String(body.tenantName ?? "").trim();
-  const email = String(body.email ?? "").trim();
-  const userName = String(body.userName ?? "").trim();
-  const password = String(body.password ?? "");
-
-  const slugErr = validateSlug(slug);
-  if (slugErr) return NextResponse.json({ error: slugErr }, { status: 400 });
-  const credErr = validateCredentials(email, password);
-  if (credErr) return NextResponse.json({ error: credErr }, { status: 400 });
+  const checked = validate(registerSchema, body);
+  if (!checked.success) {
+    return NextResponse.json({ error: checked.error }, { status: 400 });
+  }
+  const { slug, tenantName, email, userName, password } = checked.data;
 
   try {
-    const { tenant, user } = await registerTenant({ slug, tenantName, email, userName, password });
+    const { tenant, user } = await registerTenant({ slug, tenantName: tenantName ?? "", email, userName: userName ?? "", password });
     const identity = { userId: user.id, tenantId: tenant.id, role: user.role };
     const token = signSession(getSessionSecret(), identity);
     const res = NextResponse.json({ ok: true, tenantId: tenant.id });
