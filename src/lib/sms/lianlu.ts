@@ -284,8 +284,9 @@ export const LianluProvider: SmsChannelProvider = {
     const templateId = req.templateId?.trim();
     if (!mobile) return invalid("INVALID_MOBILE", "mobile 不能为空");
     if (!templateId) return invalid("INVALID_TEMPLATE", "templateId 不能为空");
-    // 视频短信路径按联麓 trade/{type}/send 命名规律，联调确认后可经 LIANLU_MMS_PATH 调整
-    const path = env("LIANLU_MMS_PATH", "/sms/trade/video/send");
+    // 视频彩信是联麓独立产品模块，路径与普通短信(/sms/trade/normal/send)不同。
+    // 未从公开文档确认，留空时降级；联调时在控制台拿到真实路径后配 LIANLU_MMS_PATH。
+    const path = env("LIANLU_MMS_PATH");
     if (!path) return unsupported("sendMms");
     const r = await call(
       path,

@@ -38,6 +38,23 @@ async function main() {
     });
   }
 
+  // 敏感词库 seed（行业通用高危词，运营可在控制台增补）
+  const SEED_WORDS: Array<[string, string]> = [
+    ["办证", "fraud"], ["刻章", "fraud"], ["代考", "fraud"], ["试卷答案", "fraud"], ["走私", "fraud"],
+    ["管制刀具", "fraud"], ["套现", "finance"], ["洗钱", "finance"], ["代开发票", "finance"],
+    ["刷单", "commerce"], ["代还信用卡", "finance"], ["保本", "finance"], ["零风险", "finance"],
+    ["日赚", "finance"], ["月入百万", "finance"], ["博彩", "gambling"], ["赌博", "gambling"],
+    ["开奖", "gambling"], ["下注", "gambling"], ["丰胸", "medical"], ["增高", "medical"],
+    ["壮阳", "medical"], ["性药", "medical"], ["梅毒", "medical"], ["淋病", "medical"],
+  ];
+  for (const [word, category] of SEED_WORDS) {
+    await db.sensitiveWord.upsert({
+      where: { tenantId_word: { tenantId: DEFAULT_TENANT_ID, word } },
+      update: { category, status: "active" },
+      create: { tenantId: DEFAULT_TENANT_ID, word, category, status: "active" },
+    });
+  }
+
   await db.smsTemplate.createMany({
     data: [
       { tenantId: DEFAULT_TENANT_ID, name: "续费提醒-千人千面", type: "text", reportStatus: "approved",

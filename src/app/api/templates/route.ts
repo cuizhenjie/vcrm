@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const tenantId = currentTenantId();
   const { name, type, content, landingUrl } = await req.json();
   if (!name || !content) return NextResponse.json({ error: "名称与内容必填" }, { status: 400 });
-  const risk = contentRiskReason(content);
+  const risk = await contentRiskReason(content, tenantId);
   const tpl = await db.smsTemplate.create({
     data: {
       tenantId,
