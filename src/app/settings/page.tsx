@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Topbar, Tag } from "@/components/ui";
 
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("zh-CN") : "—");
@@ -12,7 +13,9 @@ export default function SettingsPage() {
   const plan = data.subscription?.plan;
   return (
     <>
-      <Topbar title="租户与计费" sub="商业化运营 · 套餐 / 额度 / 发送审计" />
+      <Topbar title="租户与计费" sub="商业化运营 · 套餐 / 额度 / 发送审计">
+        <Link href="/recharge" className="btn btn-pri">+ 充值额度</Link>
+      </Topbar>
       <div className="p-6 space-y-5">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
           <div className="card p-4">
