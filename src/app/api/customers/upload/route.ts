@@ -55,26 +55,44 @@ export async function POST(req: NextRequest) {
   const rows = await parseRows(file);
   if (rows.length === 0) return NextResponse.json({ error: "表格为空或无表头" }, { status: 400 });
 
-  const batch = await db.customerBatch.create({ data: { tenantId, name: batchName, total: rows.length } });
-  let valid = 0;
+  // 先在内存里解析出合法客户行（事务内不做解析 IO）
+  const parsed: Array<{ name: string | null; mobile: string; vars: string | null }> = [];
   for (const row of rows) {
     const m = pick(row, MOBILE_KEYS);
     if (!m || !/^1\d{10}$/.test(m.val)) continue;
     const n = pick(row, NAME_KEYS);
-    // 其余列 → 变量 JSON
     const vars: Record<string, string> = {};
     for (const [h, v] of Object.entries(row)) {
       if (h === m.key || (n && h === n.key)) continue;
       vars[h] = String(v);
     }
-    await db.customer.create({
-      data: { tenantId, name: n?.val ?? null, mobile: m.val, batchId: batch.id,
-              consentSource: "file_import", consentAt: new Date(),
-              vars: Object.keys(vars).length ? JSON.stringify(vars) : null },
+    parsed.push({
+      name: n?.val ?? null,
+      mobile: m.val,
+      vars: Object.keys(vars).length ? JSON.stringify(vars) : null,
     });
-    valid++;
   }
-  await db.customerBatch.update({ where: { id: batch.id }, data: { valid } });
+
+  // 事务：批次创建 + 客户批量写入 + valid 统计，原子完成
+  const result = await db.$transaction(async (tx) => {
+    const batch = await tx.customerBatch.create({
+      data: { tenantId, name: batchName, total: rows.length },
+    });
+    await tx.customer.createMany({
+      data: parsed.map((p) => ({
+        tenantId,
+        name: p.name,
+        mobile: p.mobile,
+        batchId: batch.id,
+        consentSource: "file_import",
+        consentAt: new Date(),
+        vars: p.vars,
+      })),
+    });
+    await tx.customerBatch.update({ where: { id: batch.id }, data: { valid: parsed.length } });
+    return { batchId: batch.id };
+  });
+
   const columns = Object.keys(rows[0]);
-  return NextResponse.json({ batchId: batch.id, total: rows.length, valid, columns });
+  return NextResponse.json({ batchId: result.batchId, total: rows.length, valid: parsed.length, columns });
 }

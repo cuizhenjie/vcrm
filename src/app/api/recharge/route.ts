@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/session";
 import { createRechargeOrder } from "@/lib/payment-service";
-import { listProviders, getPaymentProvider } from "@/lib/payment";
+import { listProviders } from "@/lib/payment";
+import { smsUnitCostFen } from "@/lib/billing";
+import { validate, rechargeSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +12,9 @@ export async function GET() {
   const session = getCurrentSession();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const providers = listProviders();
-  const unitCostFen = Number(process.env.SMS_UNIT_COST ?? 0.05) * 100;
   return NextResponse.json({
     providers: providers.filter((p) => p.configured || p.name === "mock"),
-    unitCostFen: Math.round(unitCostFen),
+    unitCostFen: smsUnitCostFen(),
     currency: "CNY",
   });
 }
@@ -24,11 +25,11 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const quantity = Number(body.quantity);
-  const provider = String(body.provider ?? "").trim();
-  if (!Number.isFinite(quantity) || quantity < 1) {
-    return NextResponse.json({ error: "充值数量需为正整数" }, { status: 400 });
+  const checked = validate(rechargeSchema, body);
+  if (!checked.success) {
+    return NextResponse.json({ error: checked.error }, { status: 400 });
   }
+  const { quantity, provider } = checked.data;
 
   try {
     const result = await createRechargeOrder({

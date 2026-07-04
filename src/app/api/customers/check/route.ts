@@ -2,26 +2,55 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getProvider } from "@/lib/sms";
 import { currentTenantId } from "@/lib/tenant";
+import { validate, customerCheckSchema } from "@/lib/schemas";
 
-// body = { batchId }
+// body = { batchId } —— 对批次内（或全部 pending）号码做空号检测
 export async function POST(req: NextRequest) {
   const tenantId = currentTenantId();
-  const { batchId } = await req.json();
-  const customers = await db.customer.findMany({ where: batchId ? { tenantId, batchId } : { tenantId, checkStatus: "pending" } });
+  const body = await req.json().catch(() => ({}));
+  const checked = validate(customerCheckSchema, body);
+  const batchId = checked.success ? checked.data.batchId : undefined;
+
+  const customers = await db.customer.findMany({
+    where: batchId ? { tenantId, batchId } : { tenantId, checkStatus: "pending" },
+    select: { id: true, mobile: true, isBlacklist: true, province: true, carrier: true },
+  });
   if (customers.length === 0) return NextResponse.json({ checked: 0 });
 
   const results = await getProvider().checkNumbers(customers.map((c) => c.mobile));
+
+  // 分块提交事务（每块 500 条）：避免单个长事务在 SQLite 库级写锁下长时间阻塞全系统写
+  const CHUNK = 500;
   let valid = 0;
-  for (const c of customers) {
-    const r = results.find((x) => x.mobile === c.mobile);
-    const empty = r?.status === "empty";
-    if (!empty && !c.isBlacklist) valid++;
-    await db.customer.update({
-      where: { id: c.id },
-      data: { checkStatus: "done", province: r?.province ?? c.province, carrier: r?.carrier ?? c.carrier,
-               isBlacklist: empty ? true : c.isBlacklist },
-    });
+  try {
+    for (let i = 0; i < customers.length; i += CHUNK) {
+      const chunk = customers.slice(i, i + CHUNK);
+      await db.$transaction(async (tx) => {
+        for (const c of chunk) {
+          const r = results.find((x) => x.mobile === c.mobile);
+          const empty = r?.status === "empty";
+          if (!empty && !c.isBlacklist) valid++;
+          await tx.customer.update({
+            where: { id: c.id },
+            data: {
+              checkStatus: "done",
+              province: r?.province ?? c.province,
+              carrier: r?.carrier ?? c.carrier,
+              isBlacklist: empty ? true : c.isBlacklist,
+            },
+          });
+        }
+      }, { timeout: 30000, maxWait: 30000 });
+    }
+    if (batchId) {
+      await db.customerBatch.updateMany({
+        where: { tenantId, id: batchId },
+        data: { checkStatus: "done", valid },
+      });
+    }
+  } catch (e) {
+    console.error("[customers/check] transaction failed", e);
+    return NextResponse.json({ error: "号码检测失败，部分数据可能已更新" }, { status: 500 });
   }
-  if (batchId) await db.customerBatch.updateMany({ where: { tenantId, id: batchId }, data: { checkStatus: "done", valid } });
   return NextResponse.json({ checked: customers.length, valid });
 }
