@@ -44,17 +44,19 @@ export default function SensitiveWordsPage() {
 
   const toggle = async (id: string, cur: string) => {
     const status = cur === "active" ? "inactive" : "active";
-    await fetch(`/api/sensitive-words/${id}`, {
+    const r = await fetch(`/api/sensitive-words/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    if (!r.ok) { setMsg("操作失败，请重试"); return; }
     load();
   };
 
   const del = async (id: string) => {
     if (!confirm("删除该敏感词？")) return;
-    await fetch(`/api/sensitive-words/${id}`, { method: "DELETE" });
+    const r = await fetch(`/api/sensitive-words/${id}`, { method: "DELETE" });
+    if (!r.ok) { setMsg("删除失败，请重试"); return; }
     load();
   };
 

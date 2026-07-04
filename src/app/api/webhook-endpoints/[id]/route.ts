@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { validatePublicUrl } from "@/lib/ssrf-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const data: Record<string, unknown> = {};
   if (typeof body.name === "string") data.name = body.name.trim().slice(0, 100);
   if (typeof body.url === "string") {
-    if (!/^https?:\/\//.test(body.url)) return NextResponse.json({ error: "URL 不合法" }, { status: 400 });
+    const urlErr = validatePublicUrl(body.url.trim());
+    if (urlErr) return NextResponse.json({ error: urlErr }, { status: 400 });
     data.url = body.url.trim().slice(0, 500);
   }
   if (body.status === "active" || body.status === "inactive") data.status = body.status;

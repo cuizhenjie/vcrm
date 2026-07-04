@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { validatePublicUrl } from "@/lib/ssrf-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,8 @@ export async function POST(req: NextRequest) {
   const url = typeof body.url === "string" ? body.url.trim().slice(0, 500) : "";
   const secret = typeof body.secret === "string" && body.secret.trim() ? body.secret.trim().slice(0, 200) : null;
   if (!name) return NextResponse.json({ error: "名称必填" }, { status: 400 });
-  if (!url || !/^https?:\/\//.test(url)) return NextResponse.json({ error: "URL 需为合法 http(s) 地址" }, { status: 400 });
+  const urlErr = validatePublicUrl(url);
+  if (urlErr) return NextResponse.json({ error: urlErr }, { status: 400 });
   const eventTypes = Array.isArray(body.eventTypes) ? body.eventTypes.filter((t: any) => typeof t === "string").slice(0, 50) : [];
   if (eventTypes.length === 0) return NextResponse.json({ error: "至少订阅一个事件类型" }, { status: 400 });
 

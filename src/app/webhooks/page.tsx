@@ -48,6 +48,7 @@ export default function WebhooksPage() {
   const save = async () => {
     setBusy(true); setErr("");
     if (!form.name.trim() || !form.url.trim()) { setErr("名称和 URL 必填"); setBusy(false); return; }
+    if (!/^https?:\/\//.test(form.url.trim())) { setErr("URL 需以 http:// 或 https:// 开头"); setBusy(false); return; }
     if (form.eventTypes.length === 0) { setErr("至少订阅一个事件"); setBusy(false); return; }
     const body: any = { name: form.name, url: form.url, eventTypes: form.eventTypes };
     if (form.secret) body.secret = form.secret;
@@ -63,17 +64,19 @@ export default function WebhooksPage() {
   };
 
   const toggleStatus = async (e: any) => {
-    await fetch(`/api/webhook-endpoints/${e.id}`, {
+    const r = await fetch(`/api/webhook-endpoints/${e.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: e.status === "active" ? "inactive" : "active" }),
     });
+    if (!r.ok) { alert("操作失败，请重试"); return; }
     load();
   };
 
   const del = async (e: any) => {
     if (!confirm(`删除 webhook「${e.name}」？`)) return;
-    await fetch(`/api/webhook-endpoints/${e.id}`, { method: "DELETE" });
+    const r = await fetch(`/api/webhook-endpoints/${e.id}`, { method: "DELETE" });
+    if (!r.ok) { alert("删除失败，请重试"); return; }
     load();
   };
 

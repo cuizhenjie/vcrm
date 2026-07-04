@@ -18,8 +18,9 @@ export default function RechargePage() {
     fetch("/api/recharge").then((r) => r.json()).then((d) => {
       setProviders(d.providers ?? []);
       setUnitCostFen(d.unitCostFen ?? 0);
-      const first = (d.providers ?? [])[0];
-      if (first) setProvider(first.name);
+      // 默认选中第一个已配置的渠道（跳过未配置的 wechat/alipay）
+      const ready = (d.providers ?? []).find((p: any) => p.configured);
+      if (ready) setProvider(ready.name);
     });
   }, []);
 
@@ -83,16 +84,19 @@ export default function RechargePage() {
             <div className="text-sm text-ink3">暂无可用支付渠道（联系管理员开通）</div>
           ) : (
             <div className="space-y-2">
-              {providers.map((p) => (
-                <label
-                  key={p.name}
-                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${provider === p.name ? "border-primary bg-primary/5" : "border-line hover:border-accent"}`}
-                >
-                  <input type="radio" name="provider" checked={provider === p.name} onChange={() => setProvider(p.name)} />
-                  <span className="font-medium">{PROVIDER_LABEL[p.name] ?? p.name}</span>
-                  {!p.configured && <span className="text-xs text-warn">未配置</span>}
-                </label>
-              ))}
+              {providers.map((p) => {
+                const disabled = !p.configured;
+                return (
+                  <label
+                    key={p.name}
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition ${disabled ? "border-line opacity-50 cursor-not-allowed" : provider === p.name ? "border-primary bg-primary/5 cursor-pointer" : "border-line hover:border-accent cursor-pointer"}`}
+                  >
+                    <input type="radio" name="provider" checked={provider === p.name} disabled={disabled} onChange={() => setProvider(p.name)} />
+                    <span className="font-medium">{PROVIDER_LABEL[p.name] ?? p.name}</span>
+                    {disabled && <span className="text-xs text-warn">未配置</span>}
+                  </label>
+                );
+              })}
             </div>
           )}
         </div>
