@@ -24,21 +24,30 @@ export async function resolveSignName(tenantId: string, signatureId?: string | n
   return env ? normalize(env) : "";
 }
 
-/** 规范化签名：确保带【】包裹（联麓 SignName 字段通常不含括号，由通道添加，这里保持原样）。 */
+/** 规范化签名：去掉【】（联麓 SignName 字段不含括号，由通道添加；env 兜底可能带括号需统一去除）。 */
 function normalize(name: string): string {
-  return name.trim();
+  return name.trim().replace(/^[【\[]+|[】\]]+$/g, "");
 }
 
-/** 切换默认签名（同一租户只能有一个默认）。 */
-export async function setDefaultSignature(tenantId: string, signatureId: string): Promise<void> {
+/** 切换默认签名（同一租户只能有一个默认，且必须 approved）。
+ *  返回 false 表示签名不存在或未审核通过。 */
+export async function setDefaultSignature(tenantId: string, signatureId: string): Promise<boolean> {
+  // 先校验目标签名存在且已审核通过（否则设了默认也无效，会静默回落 env）
+  const target = await db.smsSignature.findFirst({
+    where: { id: signatureId, tenantId, reportStatus: "approved" },
+    select: { id: true },
+  });
+  if (!target) return false;
+
   await db.$transaction(async (tx) => {
     await tx.smsSignature.updateMany({
       where: { tenantId, isDefault: true },
       data: { isDefault: false },
     });
-    await tx.smsSignature.updateMany({
-      where: { id: signatureId, tenantId },
+    await tx.smsSignature.update({
+      where: { id: signatureId },
       data: { isDefault: true },
     });
   });
+  return true;
 }

@@ -32,6 +32,17 @@ function VideoGenNode({ data }: NodeProps) {
   const [status, setStatus] = useState(data.status || "idle");
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || "");
   const [busy, setBusy] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelledRef = useRef(false);
+
+  // 组件卸载时清理轮询定时器，防泄漏
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
+  }, []);
 
   const generate = async () => {
     setBusy(true); setStatus("queued");
@@ -43,18 +54,20 @@ function VideoGenNode({ data }: NodeProps) {
     });
     const j = await r.json();
     if (!r.ok) { setStatus("failed"); setBusy(false); return; }
-    // 轮询
+    // 轮询（卸载时通过 cancelledRef 中断）
     const poll = async () => {
+      if (cancelledRef.current) return;
       const s = await fetch(`/api/video/${j.taskId}`).then((r) => r.json());
+      if (cancelledRef.current) return;
       if (s.status === "succeeded") {
         setStatus("succeeded"); setVideoUrl(s.videoUrl); data.status = "succeeded"; data.videoUrl = s.videoUrl; setBusy(false);
       } else if (s.status === "failed") {
         setStatus("failed"); data.status = "failed"; setBusy(false);
       } else {
-        setTimeout(poll, 5000);
+        pollRef.current = setTimeout(poll, 5000);
       }
     };
-    setTimeout(poll, 5000);
+    pollRef.current = setTimeout(poll, 5000);
   };
 
   return (

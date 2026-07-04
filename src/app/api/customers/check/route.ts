@@ -58,8 +58,19 @@ export async function POST(req: NextRequest) {
       });
     }
   } catch (e) {
-    console.error("[customers/check] transaction failed", e);
-    return NextResponse.json({ error: "号码检测失败，部分数据可能已更新" }, { status: 500 });
+    console.error("[customers/check] failed", e);
+    // 回滚 checking → pending：防止客户/批次永久卡在 checking 导致前端无限轮询
+    await db.customer.updateMany({
+      where: { id: { in: customers.map((c) => c.id) }, checkStatus: "checking" },
+      data: { checkStatus: "pending" },
+    }).catch(() => {});
+    if (batchId) {
+      await db.customerBatch.updateMany({
+        where: { tenantId, id: batchId, checkStatus: "checking" },
+        data: { checkStatus: "pending" },
+      }).catch(() => {});
+    }
+    return NextResponse.json({ error: "号码检测失败，已回滚待重试" }, { status: 500 });
   }
   return NextResponse.json({ checked: customers.length, valid });
 }

@@ -59,11 +59,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ ok: true });
   }
 
-  // 普通编辑（不改审核状态）
+  // 普通编辑（不改审核状态）—— 但改 content 必须回 pending 重审，防审核绕过
   const data: Record<string, unknown> = {};
   if (typeof body.name === "string") data.name = body.name.trim().slice(0, 100);
   if (typeof body.type === "string") data.type = body.type;
-  if (typeof body.content === "string") data.content = body.content;
+  if (typeof body.content === "string" && body.content.trim() && body.content !== tpl.content) {
+    // 内容变更：重跑敏感词 + 强制回 pending 重审（防审核绕过）
+    const risk = await contentRiskReason(body.content, tid);
+    if (risk) {
+      await db.smsTemplate.update({
+        where: { id: params.id },
+        data: { content: body.content, reportStatus: "rejected", reportReviewedAt: new Date(), rejectReason: risk },
+      });
+      return NextResponse.json({ error: `内容未通过审核：${risk}` }, { status: 400 });
+    }
+    data.content = body.content;
+    data.reportStatus = "pending";
+    data.reportSubmittedAt = new Date();
+    data.rejectReason = null;
+  }
   if (typeof body.landingUrl === "string") data.landingUrl = body.landingUrl || null;
   if (typeof body.signatureId === "string") data.signatureId = body.signatureId || null;
   if (Object.keys(data).length === 0) return NextResponse.json({ error: "无更新字段" }, { status: 400 });

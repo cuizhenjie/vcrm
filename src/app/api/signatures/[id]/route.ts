@@ -26,11 +26,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data.signName = body.signName.trim().slice(0, 50);
   }
 
-  // 设为默认（单独处理，保证唯一性）
+  // 设为默认（单独处理，保证唯一性 + 必须审核通过）
   if (body.isDefault === true) {
-    const r = await db.smsSignature.findFirst({ where: { id: params.id, tenantId: tid } });
-    if (!r) return NextResponse.json({ error: "不存在" }, { status: 404 });
-    await setDefaultSignature(tid, params.id);
+    const ok = await setDefaultSignature(tid, params.id);
+    if (!ok) return NextResponse.json({ error: "签名不存在或未审核通过，不能设为默认" }, { status: 400 });
     return NextResponse.json({ ok: true });
   }
 

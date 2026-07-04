@@ -23,6 +23,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const data: Record<string, unknown> = {};
   if (typeof body.name === "string") data.name = body.name.trim().slice(0, 100);
   if (typeof body.dataJson === "string") {
+    // 大小上限 2MB（防写爆 SQLite）
+    if (body.dataJson.length > 2_000_000) {
+      return NextResponse.json({ error: "画布数据过大（上限 2MB）" }, { status: 413 });
+    }
     // 校验是合法 JSON（防脏数据）
     try {
       JSON.parse(body.dataJson);
