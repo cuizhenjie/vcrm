@@ -11,8 +11,10 @@ export async function GET() {
 }
 export async function POST(req: NextRequest) {
   const tenantId = currentTenantId();
-  const { name, type, content, landingUrl } = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const { name, type, content, landingUrl, signatureId, submit } = body;
   if (!name || !content) return NextResponse.json({ error: "名称与内容必填" }, { status: 400 });
+  // 创建时即做敏感词预检：命中直接 rejected，否则按 submit 决定 draft/pending
   const risk = await contentRiskReason(content, tenantId);
   const tpl = await db.smsTemplate.create({
     data: {
@@ -21,8 +23,10 @@ export async function POST(req: NextRequest) {
       type: type ?? "text",
       content,
       landingUrl: landingUrl || null,
-      reportStatus: risk ? "rejected" : "pending",
-      reportSubmittedAt: new Date(),
+      signatureId: signatureId || null,
+      // submit=true 立即提交审核→pending；否则存为 draft 草稿
+      reportStatus: risk ? "rejected" : submit === false ? "draft" : "pending",
+      reportSubmittedAt: risk || submit === false ? null : new Date(),
       reportReviewedAt: risk ? new Date() : null,
       rejectReason: risk,
     },

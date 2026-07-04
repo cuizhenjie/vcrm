@@ -36,7 +36,7 @@ import type {
 type ParamValue = string | number | boolean | readonly string[] | null | undefined;
 type Params = Record<string, ParamValue>;
 type CallResult = { ok: boolean; code?: string; raw: unknown };
-type CallOptions = { retries?: number };
+type CallOptions = { retries?: number; overrideSignName?: string };
 type HttpResponse = { httpOk: boolean; status: number; raw: unknown };
 
 /** 签名时必须排除的字段（复杂类型 + Signature 本身），来自官方文档 1.2。 */
@@ -95,12 +95,13 @@ const makeSignature = (params: Params, key: string): string => {
 
 // ---- 请求体组装 -----------------------------------------------------------
 
-/** 组装请求体：公共参数 + 业务参数 → compact（去空值）→ 算签名 → 追加 Signature。 */
-const buildRequestBody = (bizParams: Params): Params => {
+/** 组装请求体：公共参数 + 业务参数 → compact（去空值）→ 算签名 → 追加 Signature。
+ *  可选 overrideSignName：覆盖默认签名（多签名场景，来自模板/任务的 signatureId 解析）。 */
+const buildRequestBody = (bizParams: Params, overrideSignName?: string): Params => {
   const merged: Params = {
     AppId: appId(),
     MchId: mchId(),
-    SignName: signName(),
+    SignName: overrideSignName || signName(),
     SignType: "MD5",
     TimeStamp: String(Math.floor(Date.now() / 1000)),
     Type: env("LIANLU_MESSAGE_TYPE", "1"),
@@ -154,7 +155,7 @@ const call = async (
   const maxRetries = options.retries ?? numberEnv("LIANLU_RETRIES", 0);
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
-      const res = await postJson(`${base()}${normalized}`, buildRequestBody(bizParams));
+      const res = await postJson(`${base()}${normalized}`, buildRequestBody(bizParams, options.overrideSignName));
       return interpretResponse(res);
     } catch (error) {
       if (attempt === maxRetries) return { ok: false, code: "NETWORK_ERROR", raw: toMessage(error) };
@@ -274,7 +275,7 @@ export const LianluProvider: SmsChannelProvider = {
     const r = await call(
       env("LIANLU_SEND_PATH", "/sms/trade/normal/send"),
       { PhoneNumberSet: [mobile], SessionContext: content, Tag: req.extno?.trim() || "" },
-      { retries: 0 },
+      { retries: 0, overrideSignName: req.signName },
     );
     return toSendResult(r);
   },
@@ -291,7 +292,7 @@ export const LianluProvider: SmsChannelProvider = {
     const r = await call(
       path,
       { PhoneNumberSet: [mobile], TemplateId: templateId, Tag: req.extno?.trim() || "" },
-      { retries: 0 },
+      { retries: 0, overrideSignName: req.signName },
     );
     return toSendResult(r);
   },
@@ -306,7 +307,7 @@ export const LianluProvider: SmsChannelProvider = {
     const r = await call(
       path,
       { PhoneNumberSet: [mobile], SessionContext: content, Tag: req.extno?.trim() || "" },
-      { retries: 0 },
+      { retries: 0, overrideSignName: req.signName },
     );
     return toSendResult(r);
   },

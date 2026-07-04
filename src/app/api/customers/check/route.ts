@@ -17,6 +17,15 @@ export async function POST(req: NextRequest) {
   });
   if (customers.length === 0) return NextResponse.json({ checked: 0 });
 
+  // 置 checking 中间态（前端可轮询进度）
+  await db.customer.updateMany({
+    where: { id: { in: customers.map((c) => c.id) } },
+    data: { checkStatus: "checking" },
+  });
+  if (batchId) {
+    await db.customerBatch.updateMany({ where: { tenantId, id: batchId }, data: { checkStatus: "checking" } });
+  }
+
   const results = await getProvider().checkNumbers(customers.map((c) => c.mobile));
 
   // 分块提交事务（每块 500 条）：避免单个长事务在 SQLite 库级写锁下长时间阻塞全系统写
