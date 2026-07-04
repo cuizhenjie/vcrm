@@ -29,9 +29,8 @@ async function getRedis() {
       retryStrategy: (times) => (times > 2 ? null : Math.min(times * 200, 1000)),
     });
     _redisClient.on("error", (e: Error) => {
-      console.warn("[redis] 连接异常，回退 DB 频控", e.message);
-      _redisInitFailed = true;
-      _redisClient = null;
+      // 只 warn 不永久置位：保留 ioredis 自带重连能力，短暂抖动后自动恢复 Redis
+      console.warn("[redis] 连接异常（已回退 DB 频控，重连后自动恢复）", e.message);
     });
     return _redisClient;
   } catch (e) {

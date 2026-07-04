@@ -92,12 +92,8 @@ export const AlipayPayment: PaymentProvider = {
   async verifyCallback(rawBody: string): Promise<VerifyResult> {
     if (!this.isConfigured()) return { ok: false, error: "not_configured" };
     try {
-      // 支付宝异步通知是 form-urlencoded
-      const params: Record<string, string> = {};
-      for (const pair of rawBody.split("&")) {
-        const [k, v] = pair.split("=");
-        if (k) params[decodeURIComponent(k)] = decodeURIComponent(v ?? "");
-      }
+      // 支付宝异步通知是 form-urlencoded，用 URLSearchParams 解析（正确处理含 = 的值，如 base64 sign 末尾的 ==）
+      const params: Record<string, string> = Object.fromEntries(new URLSearchParams(rawBody));
       const sign = params.sign;
       if (!sign) return { ok: false, error: "no_sign" };
       const ok = alipayVerify(params, sign);
