@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runDueCampaigns, inQuietHours } from "@/lib/scheduler";
 import { dispatchOutboundEvents } from "@/lib/event-dispatcher";
 import { reconcileSubscriptions } from "@/lib/subscription-scheduler";
+import { checkAndNotify } from "@/lib/notification-service";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,13 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     console.error("[cron] subscription reconcile error", e);
   }
-  return NextResponse.json({ ok: true, quietNow: inQuietHours(), ...due, events: dispatched, subscriptions: subs });
+  // 通知检测（余额预警/到期提醒），失败不影响主流程
+  let notifications = { notified: 0 };
+  try {
+    notifications = await checkAndNotify();
+  } catch (e) {
+    console.error("[cron] notification check error", e);
+  }
+  return NextResponse.json({ ok: true, quietNow: inQuietHours(), ...due, events: dispatched, subscriptions: subs, notifications });
 }
 export const POST = GET;

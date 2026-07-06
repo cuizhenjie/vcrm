@@ -1,3 +1,5 @@
+import NotificationBell from "./NotificationBell";
+
 export function Topbar({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
   return (
     <div className="h-[58px] bg-white border-b border-line flex items-center gap-3 px-6 sticky top-0 z-20">
@@ -5,6 +7,7 @@ export function Topbar({ title, sub, children }: { title: string; sub?: string; 
       {sub && <span className="text-sm text-ink3">{sub}</span>}
       <div className="flex-1" />
       {children}
+      <NotificationBell />
     </div>
   );
 }
