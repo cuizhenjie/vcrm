@@ -23,7 +23,7 @@ function useUpdateNodeData(setNodes: ReturnType<typeof useNodesState>[1]) {
 }
 
 // ============ 文本节点 ============
-function TextNode({ id, data }: NodeProps & { onUpdate?: (patch: Record<string, unknown>) => void }) {
+function TextNode({ data, onUpdate }: NodeProps & { onUpdate?: (patch: Record<string, unknown>) => void }) {
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-3 w-56">
       <Handle type="target" position={Position.Top} />
@@ -32,7 +32,7 @@ function TextNode({ id, data }: NodeProps & { onUpdate?: (patch: Record<string, 
         className="w-full text-sm outline-none resize-none bg-transparent"
         rows={3}
         value={data.text || ""}
-        onChange={(e) => data.onUpdate?.({ text: e.target.value }) ?? (data.text = e.target.value)}
+        onChange={(e) => onUpdate?.({ text: e.target.value })}
         placeholder="输入营销文案..."
       />
       <Handle type="source" position={Position.Bottom} />
@@ -41,7 +41,7 @@ function TextNode({ id, data }: NodeProps & { onUpdate?: (patch: Record<string, 
 }
 
 // ============ 视频生成节点 ============
-function VideoGenNode({ id, data }: NodeProps & { onUpdate?: (patch: Record<string, unknown>) => void }) {
+function VideoGenNode({ data, onUpdate }: NodeProps & { onUpdate?: (patch: Record<string, unknown>) => void }) {
   const [status, setStatus] = useState(data.status || "idle");
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || "");
   const [busy, setBusy] = useState(false);
@@ -57,7 +57,7 @@ function VideoGenNode({ id, data }: NodeProps & { onUpdate?: (patch: Record<stri
   }, []);
 
   const update = (patch: Record<string, unknown>) => {
-    if (data.onUpdate) data.onUpdate(patch);
+    onUpdate?.(patch);
   };
 
   const generate = async () => {
@@ -108,8 +108,8 @@ function VideoGenNode({ id, data }: NodeProps & { onUpdate?: (patch: Record<stri
 }
 
 // ============ 图片节点 ============
-function ImageNode({ id, data }: NodeProps & { onUpdate?: (patch: Record<string, unknown>) => void }) {
-  const update = (patch: Record<string, unknown>) => { if (data.onUpdate) data.onUpdate(patch); };
+function ImageNode({ data, onUpdate }: NodeProps & { onUpdate?: (patch: Record<string, unknown>) => void }) {
+  const update = (patch: Record<string, unknown>) => onUpdate?.(patch);
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-2 w-40">
       <Handle type="target" position={Position.Top} />
@@ -218,6 +218,7 @@ export default function CanvasEditor({ params }: { params: { id: string } }) {
   // 键盘快捷键
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const inEditable = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable;
       // Cmd/Ctrl+Z 撤销
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault(); undo();
@@ -226,12 +227,12 @@ export default function CanvasEditor({ params }: { params: { id: string } }) {
       if (((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) || ((e.metaKey || e.ctrlKey) && e.key === "y")) {
         e.preventDefault(); redo();
       }
-      // Cmd/Ctrl+C 复制选中
-      if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedIds.length > 0) {
+      // Cmd/Ctrl+C 复制选中（排除 input/textarea 聚焦——让系统复制生效）
+      if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedIds.length > 0 && !inEditable) {
         clipboardRef.current = nodes.filter((n) => selectedIds.includes(n.id));
       }
-      // Cmd/Ctrl+V 粘贴
-      if ((e.metaKey || e.ctrlKey) && e.key === "v" && clipboardRef.current.length > 0) {
+      // Cmd/Ctrl+V 粘贴（排除 input/textarea 聚焦——让系统粘贴生效）
+      if ((e.metaKey || e.ctrlKey) && e.key === "v" && clipboardRef.current.length > 0 && !inEditable) {
         snapshot();
         const pasted = clipboardRef.current.map((n) => ({
           ...n, id: `${n.type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -240,12 +241,12 @@ export default function CanvasEditor({ params }: { params: { id: string } }) {
         }));
         setNodes((nds) => [...nds, ...pasted]);
       }
-      // Delete 删除选中
-      if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedIds.length > 0 && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+      // Delete 删除选中（排除 input/textarea/contenteditable）
+      if ((e.key === "Delete" || e.key === "Backspace") && !inEditable) {
+        if (selectedIds.length > 0) {
           e.preventDefault(); snapshot();
           setNodes((nds) => nds.filter((n) => !selectedIds.includes(n.id)));
-          setEdges((eds) => eds.filter((e) => !selectedIds.includes(e.source) && !selectedIds.includes(e.target)));
+          setEdges((eds) => eds.filter((ed) => !selectedIds.includes(ed.source) && !selectedIds.includes(ed.target)));
         }
       }
     };
@@ -304,6 +305,7 @@ export default function CanvasEditor({ params }: { params: { id: string } }) {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onSelectionChange={onSelectionChange}
+            onNodeDragStop={snapshot}
             nodeTypes={nodeTypes}
             fitView
             snapToGrid
