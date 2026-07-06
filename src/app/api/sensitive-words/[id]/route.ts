@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { requireRole } from "@/lib/rbac";
 import { invalidateSensitiveCache } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
 
 /** DELETE /api/sensitive-words/[id] — 删除敏感词 */
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const r = await db.sensitiveWord.deleteMany({
     where: { id: params.id, tenantId: session.tenantId },
   });
@@ -19,8 +21,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
 /** PATCH /api/sensitive-words/[id] — 切换状态(active/inactive) */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const body = await req.json().catch(() => ({}));
   const status = body.status === "active" ? "active" : "inactive";
   const r = await db.sensitiveWord.updateMany({

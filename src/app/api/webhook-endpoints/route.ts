@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { requireRole } from "@/lib/rbac";
 import { validatePublicUrl } from "@/lib/ssrf-guard";
 
 export const dynamic = "force-dynamic";
 
 /** GET /api/webhook-endpoints — 列出租户的 webhook 配置 */
 export async function GET() {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const list = await db.webhookEndpoint.findMany({
     where: { tenantId: session.tenantId },
     orderBy: { createdAt: "desc" },
@@ -23,8 +25,9 @@ export async function GET() {
 
 /** POST /api/webhook-endpoints — 新建 webhook 配置 { name, url, secret?, eventTypes: string[] } */
 export async function POST(req: NextRequest) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
 
   const body = await req.json().catch(() => ({}));
   // 校验

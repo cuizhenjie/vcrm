@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { requireRole } from "@/lib/rbac";
 import { validatePublicUrl } from "@/lib/ssrf-guard";
 
 export const dynamic = "force-dynamic";
 
 /** PATCH /api/webhook-endpoints/[id] — 更新（含切换 active/inactive）或更新 secret */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const body = await req.json().catch(() => ({}));
 
   const data: Record<string, unknown> = {};
@@ -35,8 +37,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 /** DELETE /api/webhook-endpoints/[id] */
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const r = await db.webhookEndpoint.deleteMany({
     where: { id: params.id, tenantId: session.tenantId },
   });

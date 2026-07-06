@@ -3,8 +3,11 @@ import { db } from "@/lib/db";
 import { processCampaign } from "@/lib/tasks";
 import { abSignificance } from "@/lib/significance";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const id = params.id;
   const tenantId = currentTenantId();
   const body = await req.json().catch(() => ({}));

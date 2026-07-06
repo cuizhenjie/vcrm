@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,9 @@ export async function GET() {
 
 /** POST /api/signatures — 新建签名 { signName, source?, isDefault? } */
 export async function POST(req: NextRequest) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const body = await req.json().catch(() => ({}));
   const signName = typeof body.signName === "string" ? body.signName.trim().slice(0, 50) : "";
   if (!signName) return NextResponse.json({ error: "签名名称必填" }, { status: 400 });

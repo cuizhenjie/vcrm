@@ -4,6 +4,7 @@ import { createRechargeOrder } from "@/lib/payment-service";
 import { listProviders } from "@/lib/payment";
 import { smsUnitCostFen } from "@/lib/billing";
 import { validate, rechargeSchema } from "@/lib/schemas";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,11 @@ export async function GET() {
   });
 }
 
-/** POST /api/recharge — 创建充值订单 { quantity, provider } */
+/** POST /api/recharge — 创建充值订单 { quantity, provider }（需 admin 及以上） */
 export async function POST(req: NextRequest) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
 
   const body = await req.json().catch(() => ({}));
   const checked = validate(rechargeSchema, body);

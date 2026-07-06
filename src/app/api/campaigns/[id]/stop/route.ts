@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 export const dynamic = "force-dynamic";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const tenantId = currentTenantId();
   const c = await db.campaign.findFirst({ where: { id: params.id, tenantId } });
   if (!c) return NextResponse.json({ error: "not found" }, { status: 404 });

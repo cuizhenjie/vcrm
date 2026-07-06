@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeFollowStatus, type FollowStatus } from "@/lib/leads";
 import { actorName, currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 import { emitOutboundEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,8 @@ const dealAuditText = (v: number | null): string => (v == null ? "成交额：�
 // PATCH /api/leads/[id] —— 更新跟进状态 / 备注 / 成交额；读-改-写在事务内完成，
 // 仅在「真有变更」时落库并写一条审计日志(同次操作合并为一条)。
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "请求体格式错误" }, { status: 400 });

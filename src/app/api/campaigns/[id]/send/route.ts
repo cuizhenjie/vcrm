@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processCampaign } from "@/lib/tasks";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const tenantId = currentTenantId();
   const campaign = await db.campaign.findFirst({ where: { id: params.id, tenantId } });
   if (!campaign) return NextResponse.json({ error: "not found" }, { status: 404 });

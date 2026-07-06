@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export async function GET() {
 
 // 导入名单：body = { batchName, rows: [{name?, mobile}] }
 export async function POST(req: NextRequest) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const tenantId = currentTenantId();
   const { batchName, rows } = await req.json();
   if (!Array.isArray(rows) || rows.length === 0)

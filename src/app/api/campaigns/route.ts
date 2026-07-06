@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { buildSegmentWhere } from "@/lib/segment";
 import { retargetCustomerIds } from "@/lib/retarget";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 import { validate, campaignCreateSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export async function GET() {
 
 // 新建任务：校验后从有效客户生成 recipients
 export async function POST(req: NextRequest) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const tenantId = currentTenantId();
   const body = await req.json().catch(() => ({}));
   const checked = validate(campaignCreateSchema, body);
