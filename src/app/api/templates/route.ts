@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 import { contentRiskReason } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,8 @@ export async function GET() {
   return NextResponse.json(await db.smsTemplate.findMany({ where: { tenantId }, orderBy: { createdAt: "desc" } }));
 }
 export async function POST(req: NextRequest) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const tenantId = currentTenantId();
   const body = await req.json().catch(() => ({}));
   const { name, type, content, landingUrl, signatureId, submit } = body;

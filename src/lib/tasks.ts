@@ -37,6 +37,16 @@ export async function processCampaign(campaignId: string, phase?: "test" | "roll
 
   const tenantId = campaign.tenantId;
 
+  // 租户状态守卫：suspended/closed 租户禁止发送（试用到期/欠费暂停后，即使 session 仍有效也阻断）
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { status: true } });
+  if (tenant && tenant.status !== "active") {
+    await db.campaign.update({
+      where: { id: campaignId },
+      data: { status: "pending", complianceStatus: "blocked", blockedReason: `租户状态为 ${tenant.status}，发送已暂停` },
+    });
+    return;
+  }
+
   // 合规守卫：活动开启避扰时段(quietHours)时，命中夜间时段不发送，标记 deferred 由 cron 重试。
   if (campaign.quietHours && inQuietHours()) {
     await db.campaign.update({
