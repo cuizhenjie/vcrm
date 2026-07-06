@@ -41,25 +41,40 @@ export async function POST(req: NextRequest) {
 
   // 查重
   const exist = await db.appUser.findFirst({ where: { email } });
-  if (exist) return NextResponse.json({ error: "该邮箱已存在" }, { status: 409 });
+  if (exist) return NextResponse.json({ error: "该邮箱不可用" }, { status: 409 });
 
-  // maxUsers 配额校验
-  const tenant = await db.tenant.findUnique({ where: { id: session.tenantId }, select: { id: true } });
+  // 租户状态校验（suspended 租户不能邀请新成员）
+  const tenant = await db.tenant.findUnique({ where: { id: session.tenantId }, select: { status: true } });
+  if (tenant?.status !== "active") {
+    return NextResponse.json({ error: "租户状态异常，无法邀请新成员" }, { status: 403 });
+  }
+
+  // 查套餐配额
   const sub = await db.subscription.findFirst({
     where: { tenantId: session.tenantId, status: { in: ["active", "trialing"] } },
     orderBy: { createdAt: "desc" },
     include: { plan: { select: { maxUsers: true } } },
   });
   const maxUsers = sub?.plan?.maxUsers ?? 3;
-  const currentCount = await db.appUser.count({ where: { tenantId: session.tenantId } });
-  if (currentCount >= maxUsers) {
-    return NextResponse.json({ error: `已达套餐成员上限（${maxUsers} 人），请升级套餐` }, { status: 402 });
-  }
 
+  // 事务内 count + create，防并发绕过配额（create 后二次校验，超限回滚）
   const passwordHash = await hashPassword(password);
-  const user = await db.appUser.create({
-    data: { tenantId: session.tenantId, email, name, role, passwordHash, status: "active" },
-    select: { id: true, email: true, name: true, role: true, status: true },
-  });
+  let user;
+  try {
+    user = await db.$transaction(async (tx) => {
+      const created = await tx.appUser.create({
+        data: { tenantId: session.tenantId, email, name, role, passwordHash, status: "active" },
+        select: { id: true, email: true, name: true, role: true, status: true },
+      });
+      const count = await tx.appUser.count({ where: { tenantId: session.tenantId } });
+      if (count > maxUsers) throw new Error("EXCEED_QUOTA");
+      return created;
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "EXCEED_QUOTA") {
+      return NextResponse.json({ error: `已达套餐成员上限（${maxUsers} 人），请升级套餐` }, { status: 402 });
+    }
+    throw e;
+  }
   return NextResponse.json({ ok: true, user });
 }

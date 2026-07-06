@@ -39,14 +39,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (target.id === session.userId && body.status === "inactive") {
       return NextResponse.json({ error: "不能禁用自己" }, { status: 400 });
     }
+    // 禁用最后一个 active owner 需阻止（与降级同理）
+    if (body.status === "inactive" && target.role === "owner") {
+      const ownerCount = await db.appUser.count({ where: { tenantId: tid, role: "owner", status: "active" } });
+      if (ownerCount <= 1) return NextResponse.json({ error: "不能禁用最后一个 owner" }, { status: 400 });
+    }
     data.status = body.status;
   }
 
   // 改名字
   if (typeof body.name === "string") data.name = body.name.trim().slice(0, 50) || null;
 
-  // 重置密码
-  if (typeof body.password === "string" && body.password.length >= 8) {
+  // 重置密码（复用 validateCredentials 的上限规范）
+  if (typeof body.password === "string") {
+    if (body.password.length < 8 || body.password.length > 128) {
+      return NextResponse.json({ error: "密码长度需 8-128 位" }, { status: 400 });
+    }
     data.passwordHash = await hashPassword(body.password);
   }
 

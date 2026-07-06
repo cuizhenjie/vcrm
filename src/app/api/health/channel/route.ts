@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { getProvider } from "@/lib/sms";
+import { requireRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
 /**
  * 通道联调自检：返回当前通道、配置完整性、余额、回执闭环关键项检查清单。
  * 这是联麓真实联调的诊断入口——任何一项 false 都说明闭环未打通。
+ * ⚠️ 需 admin 权限（含余额、缺失环境变量等敏感信息，不可公开）。
  */
 export async function GET() {
+  const guard = requireRole("admin");
+  if (guard) return guard;
   const provider = getProvider();
   const isLianlu = provider.name === "lianlu";
 
