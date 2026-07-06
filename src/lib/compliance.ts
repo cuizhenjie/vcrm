@@ -1,7 +1,9 @@
 import { db } from "./db";
 import { currentTenantId } from "./tenant";
 
-const UNSUBSCRIBE_RE = /(退订|拒收|不再接收|td|t|n)/i;
+// 退订检测正则：必须收紧——裸 t/n/d 会把含这些字母的英文/拼音回复误判为退订（误拉黑客户）。
+// 仅匹配明确的退订意图：回T/回TD/TD/退订/拒收/不再接收，而非任意含 t/n 的文本。
+const UNSUBSCRIBE_RE = /(回T|回TD|^TD$|^T$|退订|拒收|不再接收)/i;
 
 /**
  * 内置兜底敏感词（DB 无配置时使用，覆盖行业通用高危词）。

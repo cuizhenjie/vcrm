@@ -66,6 +66,21 @@ async function main() {
     });
   }
 
+  // 意图词库 seed（上行回复意图匹配）
+  const INTENT_WORDS: Array<[string, string]> = [
+    ["需要", "positive"], ["有兴趣", "positive"], ["想了解", "positive"], ["多少钱", "positive"],
+    ["怎么办理", "positive"], ["可以", "positive"], ["好的", "positive"],
+    ["不需要", "negative"], ["不感兴趣", "negative"], ["别发了", "negative"], ["不要再发", "negative"],
+    ["退订", "unsubscribe"], ["TD", "unsubscribe"], ["拒收", "unsubscribe"],
+  ];
+  for (const [word, intent] of INTENT_WORDS) {
+    await db.intentKeyword.upsert({
+      where: { tenantId_word: { tenantId: DEFAULT_TENANT_ID, word } },
+      update: { intent, status: "active" },
+      create: { tenantId: DEFAULT_TENANT_ID, word, intent, status: "active" },
+    });
+  }
+
   await db.smsTemplate.createMany({
     data: [
       { tenantId: DEFAULT_TENANT_ID, name: "续费提醒-千人千面", type: "text", reportStatus: "approved",
