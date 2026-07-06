@@ -115,7 +115,7 @@ export async function fulfillSubscriptionOrder(orderId: string, tx: Tx): Promise
     });
   }
 
-  // 发放套餐包含的额度
+  // 发放套餐包含的额度（每次真实付费购买/续费都发，因为每次都扣了月费）
   if (plan.smsIncluded > 0) {
     const bal = await smsCreditBalance(order.tenantId, tx);
     await tx.creditLedger.create({
@@ -130,7 +130,7 @@ export async function fulfillSubscriptionOrder(orderId: string, tx: Tx): Promise
     });
   }
 
-  // 生成 Invoice（账单）
+  // 生成 Invoice（账单）—— 每次购买都出账，金额=实付金额，周期=本订单覆盖的 30 天
   await tx.invoice.create({
     data: {
       tenantId: order.tenantId,

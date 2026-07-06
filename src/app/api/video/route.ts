@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireActiveTenant } from "@/lib/rbac";
 import { createVideoTask } from "@/lib/ark-video";
 import { videoCostCredits, reserveVideoCredit, refundVideoCredit } from "@/lib/video-billing";
 import { InsufficientCreditsError } from "@/lib/billing";
@@ -26,6 +26,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const __guard = requireRole("sales");
   if (__guard) return __guard;
+  const __tenantGuard = await requireActiveTenant();
+  if (__tenantGuard) return __tenantGuard;
   const session = getCurrentSession()!;
   const body = await req.json().catch(() => ({}));
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
