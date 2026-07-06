@@ -37,7 +37,9 @@ model AppUser {
   @@index([tenantId, role])
 }
 
-/// SaaS 会话：为后续多用户登录预留；当前 cookie 会话仍可回落到默认租户
+/// SaaS 会话表（预留）：当前鉴权用无状态 HMAC token（auth.ts），不写此表。
+/// 保留供未来「可吊销会话/设备管理」使用——届时在登录时写入 tokenHash，吊销时删行。
+/// 当前可安全忽略此表。
 model AppSession {
   id        String    @id @default(cuid())
   tenantId  String    @default("default_tenant")
@@ -373,8 +375,9 @@ model Recipient {
   variantId       String?
   variant         CampaignVariant? @relation(fields: [variantId], references: [id])
   mobile          String
-  extno           String           @unique @default(cuid()) // 业务流水号(全局唯一)，回执/上行回填靠它
-  // ⚠ 真实联麓 extno 多为数字扩展号且有长度限制，对接时按文档替换生成规则
+  extno           String           @unique @default(cuid()) // 业务流水号(全局唯一)，发送时作为 Tag 透传
+  // 回执/MO 关联优先用 MessageAttempt.providerMessageId(通道返回的 taskId)；
+  // extno 作为 Tag 透传，部分通道回执会原样带回，作为辅助关联键。
   sendStatus      String           @default("pending") // pending | sent | failed | filtered
   deliveryStatus  String? // delivered | undelivered | unknown
   failReason      String?

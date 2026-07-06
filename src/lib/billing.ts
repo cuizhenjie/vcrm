@@ -26,7 +26,9 @@ export async function assertSmsCredits(tenantId: string, required: number, clien
 }
 
 export function smsUnitCostFen(raw: string | undefined = process.env.SMS_UNIT_COST): number {
-  const n = Number(raw);
+  const text = raw?.trim();
+  if (!text) return 5; // 空串/未配置 → 默认 5 分（与 roi.smsUnitCost 一致）
+  const n = Number(text);
   if (!Number.isFinite(n) || n < 0) return 5;
   return Math.round(n * 100);
 }

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
 import { queryVideoTask } from "@/lib/ark-video";
 import { refundVideoCredit, videoCostCredits } from "@/lib/video-billing";
+import { persistVideoUrl } from "@/lib/video-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const result = await queryVideoTask(task.providerTaskId);
   if (result.ok && result.status) {
     const data: Record<string, unknown> = { status: result.status };
-    if (result.videoUrl) data.videoUrl = result.videoUrl;
     if (result.thumbnailUrl) data.thumbnailUrl = result.thumbnailUrl;
     if (result.tokensUsed) data.tokensUsed = result.tokensUsed;
+    // succeeded 时转存视频 URL（防方舟 24h 过期）
+    if (result.status === "succeeded" && result.videoUrl) {
+      const { url, persisted } = await persistVideoUrl(result.videoUrl, task.id);
+      data.videoUrl = url;
+      if (persisted) data.thumbnailUrl = data.thumbnailUrl ?? "(已转存)";
+    } else if (result.videoUrl) {
+      data.videoUrl = result.videoUrl;
+    }
     await db.videoTask.update({ where: { id: task.id }, data });
 
     // 生成失败：退还预扣额度（首次进入 failed 时退，refundVideoCredit 幂等）
