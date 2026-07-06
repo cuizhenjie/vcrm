@@ -36,7 +36,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     if (result.status === "succeeded" && result.videoUrl) {
       const { url, persisted } = await persistVideoUrl(result.videoUrl, task.id);
       data.videoUrl = url;
-      if (persisted) data.thumbnailUrl = data.thumbnailUrl ?? "(已转存)";
+      // 未转存时记录 error 提示（DB 查询时能看到 + 前端能取到）
+      if (!persisted) {
+        data.error = "视频链接 24 小时内有效，请及时下载；配置 VIDEO_S3_* 可自动永久转存";
+      }
     } else if (result.videoUrl) {
       data.videoUrl = result.videoUrl;
     }
