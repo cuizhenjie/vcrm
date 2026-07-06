@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getProvider } from "@/lib/sms";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 import { validate, customerCheckSchema } from "@/lib/schemas";
 
 // body = { batchId } —— 对批次内（或全部 pending）号码做空号检测
 export async function POST(req: NextRequest) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const tenantId = currentTenantId();
   const body = await req.json().catch(() => ({}));
   const checked = validate(customerCheckSchema, body);

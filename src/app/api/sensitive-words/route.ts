@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { requireRole } from "@/lib/rbac";
 import { invalidateSensitiveCache } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +21,9 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/sensitive-words — 批量新增敏感词 { words: [{word, category?}] } */
 export async function POST(req: NextRequest) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const body = await req.json().catch(() => ({}));
   const words = Array.isArray(body.words) ? body.words : [];
   if (words.length === 0) return NextResponse.json({ error: "words 必填" }, { status: 400 });

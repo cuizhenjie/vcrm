@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { db } from "@/lib/db";
 import { currentTenantId } from "@/lib/tenant";
+import { requireRole } from "@/lib/rbac";
 
 // 识别表头中的手机号/姓名列；其余列作为千人千面变量
 const MOBILE_KEYS = ["手机号", "手机", "电话", "号码", "mobile", "phone"];
@@ -46,6 +47,8 @@ async function parseRows(file: File): Promise<Record<string, any>[]> {
 }
 
 export async function POST(req: NextRequest) {
+  const __guard = requireRole("sales");
+  if (__guard) return __guard;
   const tenantId = currentTenantId();
   const form = await req.formData();
   const file = form.get("file") as File | null;

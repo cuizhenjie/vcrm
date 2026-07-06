@@ -122,5 +122,13 @@ export async function handlePaymentCallback(
     });
   });
 
+  // 充值成功后：恢复暂停的租户（试用到期被暂停的客户，充值后自动恢复）
+  try {
+    const { reactivateSubscription } = await import("./subscription-scheduler");
+    await reactivateSubscription(order.tenantId);
+  } catch (e) {
+    console.error("[payment] reactivate subscription failed", e);
+  }
+
   return { status: 200, body: provider.successResponse() };
 }

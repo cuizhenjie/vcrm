@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
+import { requireRole } from "@/lib/rbac";
 import { contentRiskReason } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,13 @@ export const dynamic = "force-dynamic";
  *   { content, landingUrl, signatureId, name, type }   → 直接编辑（不改状态）
  */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const tid = session.tenantId;
+  // 审核操作(approve/reject)需 admin；普通编辑/重新提交 sales 即可
   const body = await req.json().catch(() => ({}));
+  const needAdmin = body.action === "approve" || body.action === "reject";
+  const guard = requireRole(needAdmin ? "admin" : "sales");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
+  const tid = session.tenantId;
 
   const tpl = await db.smsTemplate.findFirst({ where: { id: params.id, tenantId: tid } });
   if (!tpl) return NextResponse.json({ error: "模板不存在" }, { status: 404 });
@@ -86,8 +90,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const guard = requireRole("admin");
+  if (guard) return guard;
+  const session = getCurrentSession()!;
   const r = await db.smsTemplate.deleteMany({ where: { id: params.id, tenantId: session.tenantId } });
   if (r.count === 0) return NextResponse.json({ error: "不存在" }, { status: 404 });
   return NextResponse.json({ ok: true });

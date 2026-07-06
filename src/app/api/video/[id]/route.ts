@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
 import { queryVideoTask } from "@/lib/ark-video";
+import { refundVideoCredit, videoCostCredits } from "@/lib/video-billing";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/video/[id] — 查询视频任务状态（前端轮询），同步回写 DB */
+/** GET /api/video/[id] — 查询视频任务状态（前端轮询），同步回写 DB。
+ *  生成失败时自动退还预扣额度。 */
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = getCurrentSession();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -31,6 +33,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     if (result.thumbnailUrl) data.thumbnailUrl = result.thumbnailUrl;
     if (result.tokensUsed) data.tokensUsed = result.tokensUsed;
     await db.videoTask.update({ where: { id: task.id }, data });
+
+    // 生成失败：退还预扣额度（首次进入 failed 时退，refundVideoCredit 幂等）
+    if (result.status === "failed") {
+      const params = task.paramsJson ? JSON.parse(task.paramsJson) : undefined;
+      const credits = videoCostCredits(params);
+      await refundVideoCredit(session.tenantId, task.id, credits);
+    }
     return NextResponse.json({ ...task, ...data });
   }
   // 查询失败：返回当前 DB 状态（前端继续轮询）

@@ -77,6 +77,7 @@ model Subscription {
   updatedAt          DateTime  @updatedAt
 
   @@index([tenantId, status])
+  @@index([status, currentPeriodEnd])
 }
 
 /// 短信额度账本：正数充值/赠送，负数预扣/消耗/调整
