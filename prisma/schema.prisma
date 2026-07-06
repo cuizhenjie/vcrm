@@ -135,6 +135,8 @@ model PaymentOrder {
   amountFen    Int
   smsQuantity  Int
   planCode     String?
+  // 订单类型：recharge(按量充值) | subscription(套餐购买/续费)
+  orderType    String    @default("recharge")
   // 支付渠道：mock | wechat | alipay
   provider     String
   // 渠道侧交易号（微信 transaction_id / 支付宝 trade_no）
@@ -513,4 +515,20 @@ model CreativeCanvas {
   updatedAt  DateTime  @updatedAt
 
   @@index([tenantId, updatedAt])
+}
+
+/// 站内通知（余额预警/到期提醒/活动结果等）
+model Notification {
+  id        String    @id @default(cuid())
+  tenantId  String    @default("default_tenant")
+  userId    String?   // 指定用户，null=租户全员
+  type      String    // low_balance | subscription_expiring | campaign_done | video_done | general
+  title     String
+  body      String
+  level     String    @default("info") // info | warn | error
+  read      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, read, createdAt])
+  @@index([tenantId, userId, read])
 }

@@ -4,7 +4,7 @@ import { createRechargeOrder } from "@/lib/payment-service";
 import { listProviders } from "@/lib/payment";
 import { smsUnitCostFen } from "@/lib/billing";
 import { validate, rechargeSchema } from "@/lib/schemas";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireActiveTenant } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 

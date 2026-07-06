@@ -35,29 +35,25 @@ export async function reconcileSubscriptions(): Promise<{
 
   for (const sub of dueSubs) {
     if (sub.autoRenew && sub.status === "active" && sub.planId) {
-      // 自动续费：延长周期 + 发放套餐额度
-      const plan = await db.plan.findUnique({ where: { id: sub.planId }, select: { smsIncluded: true } });
-      const newEnd = new Date(now.getTime() + 30 * 24 * 3600 * 1000);
+      // 自动续费意向：到期后转为 past_due（而非自动发额度）。
+      // 真实续费须由用户走支付渠道（subscriptions/buy），支付成功回调里才发额度。
+      // 这里曾错误地"凭空发额度不扣款"——那是资金漏洞，已修复。
+      // autoRenew=true 仅作为"标记用户续费意愿"，由通知系统提醒用户续费。
+      const tenant = await db.tenant.findUnique({ where: { id: sub.tenantId }, select: { status: true } });
       await db.$transaction(async (tx) => {
         await tx.subscription.update({
           where: { id: sub.id },
-          data: { currentPeriodStart: now, currentPeriodEnd: newEnd },
+          data: { status: "past_due" },
         });
-        if (plan && plan.smsIncluded > 0) {
-          const bal = await tx.creditLedger.aggregate({ where: { tenantId: sub.tenantId }, _sum: { delta: true } });
-          await tx.creditLedger.create({
-            data: {
-              tenantId: sub.tenantId,
-              delta: plan.smsIncluded,
-              balanceAfter: (bal._sum.delta ?? 0) + plan.smsIncluded,
-              reason: "subscription_renewal",
-              refType: "subscription",
-              refId: sub.id,
-            },
+        // active 订阅到期 → 租户暂停（充值/续费后由 reactivateSubscription 恢复）
+        if (tenant?.status === "active") {
+          await tx.tenant.update({
+            where: { id: sub.tenantId },
+            data: { status: "suspended" },
           });
         }
       });
-      stats.renewed++;
+      stats.expired++;
     } else {
       // 不自动续费 或 试用到期 → past_due + 暂停租户（试用过期防白嫖）
       const tenant = await db.tenant.findUnique({ where: { id: sub.tenantId }, select: { status: true } });
@@ -103,24 +99,26 @@ export async function reconcileSubscriptions(): Promise<{
   return stats;
 }
 
-/** 租户充值/续费后恢复：把 past_due/canceled 订阅转回 active，租户解除暂停。
- *  在支付成功回调或充值后调用。 */
+/**
+ * 充值后恢复租户：仅解除租户暂停（让已购额度可用），不自动续期订阅。
+ * 订阅的 active 状态和周期由真实套餐购买（subscriptions/buy）驱动。
+ * 注意：不改 autoRenew（由用户显式选择），不延长 currentPeriodEnd（防免费续期）。
+ */
 export async function reactivateSubscription(tenantId: string): Promise<void> {
+  await db.tenant.updateMany({
+    where: { id: tenantId, status: { in: ["suspended", "closed"] } },
+    data: { status: "active" },
+  });
+  // 订阅若处于 past_due（因试用/周期到期），恢复为 active 但不延长周期
+  // （用户充值了额度可用，但订阅周期需真实购买套餐续期）
   const sub = await db.subscription.findFirst({
-    where: { tenantId, status: { in: ["past_due", "canceled", "trialing"] } },
+    where: { tenantId, status: "past_due" },
     orderBy: { createdAt: "desc" },
   });
-  if (!sub) return;
-  const newEnd = new Date(Date.now() + 30 * 24 * 3600 * 1000);
-  await db.$transaction(async (tx) => {
-    await tx.subscription.update({
+  if (sub) {
+    await db.subscription.update({
       where: { id: sub.id },
-      data: { status: "active", currentPeriodStart: new Date(), currentPeriodEnd: newEnd, autoRenew: true },
+      data: { status: "active" }, // 不改 periodEnd，到期会再次 past_due 提示续费
     });
-    // 租户恢复 active（解除暂停/关闭）
-    await tx.tenant.updateMany({
-      where: { id: tenantId, status: { in: ["suspended", "closed"] } },
-      data: { status: "active" },
-    });
-  });
+  }
 }

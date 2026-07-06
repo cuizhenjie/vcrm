@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { buildSegmentWhere } from "@/lib/segment";
 import { retargetCustomerIds } from "@/lib/retarget";
 import { currentTenantId } from "@/lib/tenant";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireActiveTenant } from "@/lib/rbac";
 import { validate, campaignCreateSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const __guard = requireRole("sales");
   if (__guard) return __guard;
+  const __tenantGuard = await requireActiveTenant();
+  if (__tenantGuard) return __tenantGuard;
   const tenantId = currentTenantId();
   const body = await req.json().catch(() => ({}));
   const checked = validate(campaignCreateSchema, body);

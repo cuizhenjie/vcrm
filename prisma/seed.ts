@@ -15,6 +15,17 @@ async function main() {
     update: { name: "Starter", smsIncluded: 10000, unitPriceFen: 5, maxUsers: 3 },
     create: { code: "starter", name: "Starter", smsIncluded: 10000, unitPriceFen: 5, maxUsers: 3 },
   });
+  // 更多套餐（商业化定价）
+  await db.plan.upsert({
+    where: { code: "growth" },
+    update: { name: "Growth", monthlyFeeFen: 9900, smsIncluded: 20000, unitPriceFen: 5, maxUsers: 10 },
+    create: { code: "growth", name: "Growth", monthlyFeeFen: 9900, smsIncluded: 20000, unitPriceFen: 5, maxUsers: 10 },
+  });
+  await db.plan.upsert({
+    where: { code: "business" },
+    update: { name: "Business", monthlyFeeFen: 29900, smsIncluded: 80000, unitPriceFen: 4, maxUsers: 50 },
+    create: { code: "business", name: "Business", monthlyFeeFen: 29900, smsIncluded: 80000, unitPriceFen: 4, maxUsers: 50 },
+  });
   const hasSubscription = await db.subscription.count({ where: { tenantId: DEFAULT_TENANT_ID } });
   if (!hasSubscription) {
     await db.subscription.create({

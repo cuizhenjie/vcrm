@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "./session";
 import type { SessionIdentity } from "./auth";
+import { db } from "./db";
 
 /**
  * 角色权限守卫（RBAC）。
@@ -50,3 +51,25 @@ export function requireLogin(): NextResponse | null {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   return null;
 }
+
+/**
+ * 异步守卫：校验当前租户是否 active（非 suspended/closed）。
+ * 用于关键写路径（充值/发送/购买套餐），防暂停租户通过已有 session 继续操作。
+ *
+ * 用法：
+ *   const guard = await requireActiveTenant();
+ *   if (guard) return guard;
+ */
+export async function requireActiveTenant(): Promise<NextResponse | null> {
+  const session = getCurrentSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const tenant = await db.tenant.findUnique({
+    where: { id: session.tenantId },
+    select: { status: true },
+  });
+  if (!tenant || tenant.status !== "active") {
+    return NextResponse.json({ error: `租户状态为 ${tenant?.status ?? "unknown"}，操作受限，请续费或联系客服` }, { status: 403 });
+  }
+  return null;
+}
+

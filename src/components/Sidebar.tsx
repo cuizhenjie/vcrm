@@ -10,6 +10,7 @@ const groups = [
   { label: "数据中心", icon: "📊", items: [{ href: "/analytics", name: "转化概览" }] },
   { label: "商业化", icon: "￥", items: [
     { href: "/settings", name: "租户与计费" },
+    { href: "/pricing", name: "套餐定价" },
     { href: "/recharge", name: "额度充值" },
   ] },
   { label: "系统配置", icon: "⚙", items: [

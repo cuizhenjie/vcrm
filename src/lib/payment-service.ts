@@ -109,17 +109,24 @@ export async function handlePaymentCallback(
     });
     if (updated.count === 0) return; // 已被并发处理，跳过入账
 
-    const balance = await smsCreditBalance(order.tenantId, tx);
-    await tx.creditLedger.create({
-      data: {
-        tenantId: order.tenantId,
-        delta: order.smsQuantity,
-        balanceAfter: balance + order.smsQuantity,
-        reason: "recharge",
-        refType: "payment_order",
-        refId: order.id,
-      },
-    });
+    if (order.orderType === "subscription") {
+      // 套餐订单：改订阅 + 发额度 + 出 Invoice（在 plan-service 内处理）
+      const { fulfillSubscriptionOrder } = await import("./plan-service");
+      await fulfillSubscriptionOrder(order.id, tx);
+    } else {
+      // 按量充值：直接加额度
+      const balance = await smsCreditBalance(order.tenantId, tx);
+      await tx.creditLedger.create({
+        data: {
+          tenantId: order.tenantId,
+          delta: order.smsQuantity,
+          balanceAfter: balance + order.smsQuantity,
+          reason: "recharge",
+          refType: "payment_order",
+          refId: order.id,
+        },
+      });
+    }
   });
 
   // 充值成功后：恢复暂停的租户（试用到期被暂停的客户，充值后自动恢复）

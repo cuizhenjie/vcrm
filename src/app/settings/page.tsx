@@ -8,12 +8,17 @@ const fen = (n?: number | null) => n == null ? "—" : `¥${(n / 100).toFixed(2)
 
 export default function SettingsPage() {
   const [data, setData] = useState<any>(null);
-  useEffect(() => { fetch("/api/tenant/overview").then((r) => r.json()).then(setData); }, []);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  useEffect(() => {
+    fetch("/api/tenant/overview").then((r) => r.json()).then(setData);
+    fetch("/api/invoices").then((r) => r.json()).then((d) => setInvoices(Array.isArray(d) ? d : []));
+  }, []);
   if (!data) return <div className="p-6 text-ink3">加载中…</div>;
   const plan = data.subscription?.plan;
   return (
     <>
       <Topbar title="租户与计费" sub="商业化运营 · 套餐 / 额度 / 发送审计">
+        <Link href="/pricing" className="btn">套餐升级</Link>
         <Link href="/recharge" className="btn btn-pri">+ 充值额度</Link>
       </Topbar>
       <div className="p-6 space-y-5">
@@ -105,6 +110,24 @@ export default function SettingsPage() {
                 <tr key={r.id}><td className="td text-ink3">{fmt(r.createdAt)}</td><td className="td">{r.type}</td><td className="td"><Tag s={r.status} /></td><td className="td">{r.attempts}</td></tr>
               ))}
               {data.events.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无外部事件</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card overflow-hidden">
+          <div className="font-semibold p-5 pb-3">账单记录</div>
+          <table className="w-full">
+            <thead><tr><th className="th">账单周期</th><th className="th">金额</th><th className="th">状态</th><th className="th">支付时间</th></tr></thead>
+            <tbody>
+              {invoices.map((inv: any) => (
+                <tr key={inv.id}>
+                  <td className="td text-ink3">{fmt(inv.periodStart)} ~ {fmt(inv.periodEnd)}</td>
+                  <td className="td font-bold">¥{inv.amountYuan}</td>
+                  <td className="td"><Tag s={inv.status} /></td>
+                  <td className="td text-ink3">{fmt(inv.paidAt)}</td>
+                </tr>
+              ))}
+              {invoices.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无账单</td></tr>}
             </tbody>
           </table>
         </div>
