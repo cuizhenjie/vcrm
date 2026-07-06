@@ -532,3 +532,16 @@ model Notification {
   @@index([tenantId, read, createdAt])
   @@index([tenantId, userId, read])
 }
+
+/// MO 意图关键词库（上行回复的意图匹配，数据驱动替代硬编码正则）
+model IntentKeyword {
+  id        String   @id @default(cuid())
+  tenantId  String   @default("default_tenant")
+  word      String   // 关键词，如"需要"、"不感兴趣"
+  intent    String   // positive | negative | unsubscribe
+  status    String   @default("active") // active | inactive
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, word])
+  @@index([tenantId, intent, status])
+}

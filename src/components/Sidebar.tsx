@@ -7,15 +7,18 @@ const groups = [
   { label: "客户管理", icon: "👥", items: [{ href: "/customers", name: "客户导入" }, { href: "/customers/check", name: "手机号检测" }] },
   { label: "内容与话术", icon: "✎", items: [{ href: "/templates", name: "短信模板" }, { href: "/signatures", name: "短信签名" }] },
   { label: "营销触达", icon: "📣", items: [{ href: "/campaigns", name: "触达任务" }, { href: "/leads", name: "线索池" }, { href: "/video", name: "视频生成" }, { href: "/canvas", name: "创意画布" }] },
-  { label: "数据中心", icon: "📊", items: [{ href: "/analytics", name: "转化概览" }] },
+  { label: "数据中心", icon: "📊", items: [{ href: "/analytics", name: "转化概览" }, { href: "/reports", name: "消息回执" }] },
   { label: "商业化", icon: "￥", items: [
     { href: "/settings", name: "租户与计费" },
     { href: "/pricing", name: "套餐定价" },
     { href: "/recharge", name: "额度充值" },
   ] },
-  { label: "系统配置", icon: "⚙", items: [
+  { label: "团队与系统", icon: "⚙", items: [
+    { href: "/members", name: "成员管理" },
     { href: "/sensitive-words", name: "敏感词库" },
+    { href: "/intent-keywords", name: "意图词库" },
     { href: "/webhooks", name: "Webhook 配置" },
+    { href: "/health", name: "系统健康" },
   ] },
 ];
 
