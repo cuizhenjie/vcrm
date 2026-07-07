@@ -40,13 +40,26 @@ export async function GET() {
         "✓ 成功判定 LIANLU_SUCCESS_FIELD=status / VALUE=00（已按文档配置）",
         "✓ 流水号 LIANLU_MESSAGE_ID_FIELD=taskId（已按文档配置，回执按 taskId 关联）",
         "? 余额路径 LIANLU_BALANCE_PATH（默认 /sms/trade/balance，按命名规律推测）",
-        "! 视频彩信路径 LIANLU_MMS_PATH（独立产品模块，需登录控制台文档确认，默认留空降级）",
+        `${process.env.LIANLU_MMS_PATH?.trim() ? "✓" : "✗"} 视频彩信 LIANLU_MMS_PATH（${process.env.LIANLU_MMS_PATH?.trim() ? "已配" : "未配，sendMms 降级"}）`,
+        `${process.env.LIANLU_FLASH_PATH?.trim() ? "✓" : "✗"} 闪信 LIANLU_FLASH_PATH（${process.env.LIANLU_FLASH_PATH?.trim() ? "已配" : "未配，sendFlash 降级"}）`,
+        `${process.env.LIANLU_CHECK_PATH?.trim() ? "✓" : "✗"} 空号检测 LIANLU_CHECK_PATH（${process.env.LIANLU_CHECK_PATH?.trim() ? "已配" : "未配，检测返回 unknown"}）`,
+        `${process.env.LIANLU_QUERY_PATH?.trim() ? "✓" : "✗"} 回执查询 LIANLU_QUERY_PATH（${process.env.LIANLU_QUERY_PATH?.trim() ? "已配" : "未配，仅靠回调"}）`,
         "? 回执字段 LIANLU_DELIVERY_MESSAGE_ID_FIELD（默认 taskId，按真实回执结构确认）",
-        "! Webhook 签名密钥 LIANLU_WEBHOOK_SECRET（联麓控制台配置回调后下发）",
+        `${process.env.LIANLU_WEBHOOK_SECRET?.trim() ? "✓" : "✗"} Webhook 签名密钥 LIANLU_WEBHOOK_SECRET`,
         "! Webhook 回调地址：在联麓控制台填入本站 /api/webhooks/delivery 和 /api/webhooks/mo",
         "! 签名方式：当前按 HMAC-SHA256 实现，联调时按联麓推送报告文档确认签名算法",
       ]
     : ["当前为 mock 通道，配置 SMS_PROVIDER=lianlu 切换真实通道"];
+
+  // 5. 全局配置诊断（支付 + 视频 + 认证）
+  const globalDiag = [
+    `${process.env.AUTH_SECRET && process.env.AUTH_SECRET.length >= 32 ? "✓" : "✗"} AUTH_SECRET（${process.env.AUTH_SECRET && process.env.AUTH_SECRET.length >= 32 ? "已配≥32字符" : "未配或过短"}）`,
+    `${process.env.CRON_SECRET?.trim() ? "✓" : "✗"} CRON_SECRET（定时任务触发密钥）`,
+    `${process.env.ARK_API_KEY?.trim() ? "✓" : "✗"} ARK_API_KEY（视频生成${process.env.ARK_API_KEY?.trim() ? "" : "，未配则不可用"}）`,
+    `${process.env.PAYMENT_PROVIDER === "wechat" && process.env.PAYMENT_WECHAT_MCH_ID?.trim() ? "✓" : process.env.PAYMENT_PROVIDER === "alipay" && process.env.PAYMENT_ALIPAY_APP_ID?.trim() ? "✓" : process.env.PAYMENT_PROVIDER === "mock" ? "⚠" : "✗"} 支付渠道 PAYMENT_PROVIDER=${process.env.PAYMENT_PROVIDER || "未配"}`,
+    `${process.env.REDIS_URL?.trim() ? "✓" : "⚠"} REDIS_URL（频控${process.env.REDIS_URL?.trim() ? "已启用" : "回退DB"}）`,
+    `${process.env.SMTP_HOST?.trim() ? "✓" : "⚠"} SMTP邮件（${process.env.SMTP_HOST?.trim() ? "已配" : "仅站内通知"}）`,
+  ];
 
   return NextResponse.json({
     provider: provider.name,
@@ -55,6 +68,7 @@ export async function GET() {
     balance,
     closedLoop,
     checklist,
+    globalDiag,
     note: isLianlu
       ? "联麓签名已按 Signature 文档实现；closedLoop 标记回执闭环是否就绪，checklist 是联调待确认项"
       : "当前为 mock 通道",

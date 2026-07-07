@@ -79,7 +79,7 @@ const isEmptyValue = (v: ParamValue): boolean => {
  * 生成签名。签名参数集 = compact 后的请求体再剔除排除集字段；
  * 调用方必须保证「参与签名的字段」与「实际发送的字段」除排除集外完全一致。
  */
-const makeSignature = (params: Params, key: string): string => {
+export const makeSignature = (params: Params, key: string): string => {
   const signingString = [
     ...Object.entries(params)
       .filter(([name, v]) => !SIGNATURE_EXCLUDED_KEYS.has(name) && !isEmptyValue(v))
