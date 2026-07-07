@@ -88,6 +88,20 @@ export default function HealthPage() {
                   </ul>
                 </div>
               )}
+
+              {/* 全局配置诊断 */}
+              {channel.globalDiag && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="text-xs text-ink3 mb-2">全局配置诊断</div>
+                  <ul className="text-sm space-y-1">
+                    {channel.globalDiag.map((item: string, i: number) => (
+                      <li key={i} className={item.startsWith("✓") ? "text-ok" : item.startsWith("✗") ? "text-danger" : "text-warn"}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </>
           )}
         </div>

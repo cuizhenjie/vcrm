@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionSecret, signSession, SESSION_COOKIE, SESSION_TTL_SEC } from "@/lib/auth";
 import { loginByCredentials } from "@/lib/user-service";
+import { recordSession } from "@/lib/session-service";
 import { db } from "@/lib/db";
 import { validate, loginSchema } from "@/lib/schemas";
 
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
   }
 
   const token = signSession(getSessionSecret(), identity);
+  // 记录会话到 DB（供吊销/设备管理）
+  if (identity.userId !== "env-admin") {
+    await recordSession(token, identity.userId, identity.tenantId);
+  }
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
