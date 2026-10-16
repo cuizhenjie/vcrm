@@ -11,6 +11,18 @@
 - **通道适配层** `SmsChannelProvider` — 联麓为其中一种实现，可多通道/切换
 - **轻量任务处理器** — 限速分批发送（生产升级 BullMQ + Redis）
 
+## UI / 动效架构（2026-10 重构）
+
+全站视觉由**零依赖 WebGL 着色器体系**驱动（无 Three.js，First Load ~99kB）：
+
+- `src/components/shaders/ShaderCanvas.tsx` — 手写 WebGL fragment shader 画布。性能策略：滚出视口/切后台暂停 rAF（IntersectionObserver + visibilitychange）、devicePixelRatio ≤1.75 且总像素预算 2.6MP、`prefers-reduced-motion` 只渲染静态一帧、WebGL 不可用/上下文丢失降级 CSS 渐变
+- `src/components/shaders/ShaderBackground.tsx` — 全站单实例背景，随路由自适应变体：**silk**（应用内页浅色流光）/ **nebula**（登录/注册/收银台深空沉浸式）
+- `src/components/motion/TiltCard.tsx` — 指针跟随 3D 倾斜卡（工作台统计卡、定价卡）；触屏与 reduced-motion 自动禁用
+- `src/components/motion/CountUp.tsx` — 数字滚动动画（easeOutExpo）
+- `src/app/template.tsx` — 路由级入场转场；动效全部 transform/opacity 合成层，CSS stagger（`--d` 延迟变量）
+- 响应式：侧边栏移动抽屉（汉堡菜单，`<lg` 隐藏）、全部表格 `overflow-x-auto` 横滚、断点内边距 `p-4 md:p-6`
+- `gui-test-screenshots/` — 浏览器实测证据（桌面 1440×900 全路由 + 移动 390×844）
+
 ## 快速开始
 ```bash
 cp .env.example .env        # 默认 SMS_PROVIDER=mock，开箱即用
