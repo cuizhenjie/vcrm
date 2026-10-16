@@ -13,7 +13,7 @@ export default function SettingsPage() {
     fetch("/api/tenant/overview").then((r) => r.json()).then(setData);
     fetch("/api/invoices").then((r) => r.json()).then((d) => setInvoices(Array.isArray(d) ? d : []));
   }, []);
-  if (!data) return <div className="p-6 text-ink3">加载中…</div>;
+  if (!data) return <div className="p-4 md:p-6 text-ink3">加载中…</div>;
   const plan = data.subscription?.plan;
   return (
     <>
@@ -21,7 +21,7 @@ export default function SettingsPage() {
         <Link href="/pricing" className="btn">套餐升级</Link>
         <Link href="/recharge" className="btn btn-pri">+ 充值额度</Link>
       </Topbar>
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
           <div className="card p-4">
             <div className="text-sm text-ink2 mb-2">租户</div>
@@ -48,7 +48,7 @@ export default function SettingsPage() {
         <div className="grid lg:grid-cols-2 gap-5">
           <div className="card overflow-hidden">
             <div className="font-semibold p-5 pb-3">额度账本</div>
-            <table className="w-full">
+            <div className="overflow-x-auto"><table className="w-full">
               <thead><tr><th className="th">时间</th><th className="th">变动</th><th className="th">余额</th><th className="th">原因</th></tr></thead>
               <tbody>
                 {data.ledger.map((r: any) => (
@@ -56,12 +56,12 @@ export default function SettingsPage() {
                 ))}
                 {data.ledger.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无账本</td></tr>}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div className="card overflow-hidden">
             <div className="font-semibold p-5 pb-3">最近发送尝试</div>
-            <table className="w-full">
+            <div className="overflow-x-auto"><table className="w-full">
               <thead><tr><th className="th">时间</th><th className="th">通道</th><th className="th">状态</th><th className="th">错误</th></tr></thead>
               <tbody>
                 {data.attempts.map((r: any) => (
@@ -69,14 +69,14 @@ export default function SettingsPage() {
                 ))}
                 {data.attempts.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无发送尝试</td></tr>}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-5">
           <div className="card overflow-hidden">
             <div className="font-semibold p-5 pb-3">发送任务</div>
-            <table className="w-full">
+            <div className="overflow-x-auto"><table className="w-full">
               <thead><tr><th className="th">创建时间</th><th className="th">阶段</th><th className="th">状态</th><th className="th">进度</th></tr></thead>
               <tbody>
                 {data.jobs.map((r: any) => (
@@ -84,12 +84,12 @@ export default function SettingsPage() {
                 ))}
                 {data.jobs.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无任务</td></tr>}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div className="card overflow-hidden">
             <div className="font-semibold p-5 pb-3">退订/抑制名单</div>
-            <table className="w-full">
+            <div className="overflow-x-auto"><table className="w-full">
               <thead><tr><th className="th">手机号</th><th className="th">原因</th><th className="th">来源</th><th className="th">时间</th></tr></thead>
               <tbody>
                 {data.suppressions.map((r: any) => (
@@ -97,13 +97,13 @@ export default function SettingsPage() {
                 ))}
                 {data.suppressions.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无抑制号码</td></tr>}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
 
         <div className="card overflow-hidden">
           <div className="font-semibold p-5 pb-3">外部事件队列</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="th">时间</th><th className="th">事件</th><th className="th">状态</th><th className="th">尝试</th></tr></thead>
             <tbody>
               {data.events.map((r: any) => (
@@ -111,12 +111,12 @@ export default function SettingsPage() {
               ))}
               {data.events.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无外部事件</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
 
         <div className="card overflow-hidden">
           <div className="font-semibold p-5 pb-3">账单记录</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="th">账单周期</th><th className="th">金额</th><th className="th">状态</th><th className="th">支付时间</th></tr></thead>
             <tbody>
               {invoices.map((inv: any) => (
@@ -129,7 +129,7 @@ export default function SettingsPage() {
               ))}
               {invoices.length === 0 && <tr><td className="td text-ink3" colSpan={4}>暂无账单</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </>

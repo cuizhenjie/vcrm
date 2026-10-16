@@ -32,7 +32,7 @@ export default function CanvasListPage() {
       <Topbar title="创意画布" sub="无限画布 · 营销内容编排工作区">
         <button className="btn btn-pri" onClick={create}>+ 新建画布</button>
       </Topbar>
-      <div className="p-6">
+      <div className="p-4 md:p-6 reveal">
         {loading ? (
           <div className="text-ink3 p-6">加载中…</div>
         ) : list.length === 0 ? (

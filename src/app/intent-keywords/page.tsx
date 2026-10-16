@@ -55,7 +55,7 @@ export default function IntentKeywordsPage() {
   return (
     <>
       <Topbar title="意图词库" sub="上行回复意图匹配 · 数据驱动（替代硬编码）" />
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="card p-5">
           <div className="font-semibold mb-3">批量添加</div>
           <div className="flex gap-3 items-start flex-wrap">
@@ -71,12 +71,12 @@ export default function IntentKeywordsPage() {
             </div>
           </div>
           {msg && <div className="text-sm text-ink3 mt-2">{msg}</div>}
-          <div className="text-xs text-ink3 mt-2">匹配优先级：退订 → 无意向 → 有意向。未命中则标"未表态"。DB 词优先于内置兜底词。</div>
+          <div className="text-xs text-ink3 mt-2">匹配优先级：退订 → 无意向 → 有意向。未命中则标&ldquo;未表态&rdquo;。DB 词优先于内置兜底词。</div>
         </div>
 
         <div className="card overflow-hidden">
           <div className="font-semibold p-5 pb-3">词库列表（{list.length}）</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="th">关键词</th><th className="th">意图</th><th className="th">状态</th><th className="th">操作</th></tr></thead>
             <tbody>
               {loading ? (
@@ -95,7 +95,7 @@ export default function IntentKeywordsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </>

@@ -6,7 +6,7 @@ type C = { id: string; name?: string; mobile: string; province?: string; carrier
 
 export default function Customers() {
   const [list, setList] = useState<C[]>([]);
-  const [raw, setRaw] = useState("张三,13800138010\n李四,13800138011");
+  const [raw, setRaw] = useState("");
   const [batchName, setBatchName] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
@@ -41,11 +41,11 @@ export default function Customers() {
       <Topbar title="客户导入" sub="客户管理">
         <button className="btn" onClick={check} disabled={loading}>号码检测</button>
       </Topbar>
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="card p-5">
           <div className="font-semibold mb-3">导入名单 <span className="text-xs text-ink3 font-normal">每行一条：姓名,手机号（姓名可省略）</span></div>
           <input className="input mb-2.5" placeholder="批次名称" value={batchName} onChange={(e) => setBatchName(e.target.value)} />
-          <textarea className="input !h-28 py-2 font-mono" value={raw} onChange={(e) => setRaw(e.target.value)} />
+          <textarea className="input !h-28 py-2 font-mono" placeholder="张三,13800138010&#10;李四,13800138011" value={raw} onChange={(e) => setRaw(e.target.value)} />
           <div className="flex items-center gap-3 mt-3">
             <button className="btn btn-pri" onClick={importNames} disabled={loading}>粘贴导入</button>
             <label className="btn cursor-pointer">
@@ -58,7 +58,7 @@ export default function Customers() {
         </div>
 
         <div className="card overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="th">客户</th><th className="th">手机号</th><th className="th">归属地</th><th className="th">运营商</th><th className="th">黑名单</th><th className="th">视频通话</th><th className="th">检测</th></tr></thead>
             <tbody>
               {list.map((c) => (
@@ -74,7 +74,7 @@ export default function Customers() {
               ))}
               {list.length === 0 && <tr><td className="td text-ink3" colSpan={7}>暂无客户，先在上方导入名单</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </>

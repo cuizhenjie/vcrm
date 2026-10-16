@@ -130,9 +130,13 @@ function ImageNode({ data, onUpdate }: NodeProps & { onUpdate?: (patch: Record<s
 
 // ============ 节点类型注册（注入 onUpdate） ============
 function makeNodeTypes(updateNodeData: (id: string, patch: Record<string, unknown>) => void) {
-  const wrap = (Comp: React.ComponentType<any>) => (props: NodeProps) => (
-    <Comp {...props} onUpdate={(patch: Record<string, unknown>) => updateNodeData(props.id, patch)} />
-  );
+  const wrap = (Comp: React.ComponentType<any>) => {
+    const Wrapped = (props: NodeProps) => (
+      <Comp {...props} onUpdate={(patch: Record<string, unknown>) => updateNodeData(props.id, patch)} />
+    );
+    Wrapped.displayName = `Wrapped${Comp.displayName ?? Comp.name ?? "Node"}`;
+    return Wrapped;
+  };
   return { text: wrap(TextNode), videoGen: wrap(VideoGenNode), image: wrap(ImageNode) };
 }
 
@@ -271,7 +275,7 @@ export default function CanvasEditor({ params }: { params: { id: string } }) {
     setCanUndo(true); setCanRedo(hist.future.length > 0);
   };
 
-  if (!loaded) return <div className="p-6 text-ink3">加载画布…</div>;
+  if (!loaded) return <div className="p-4 md:p-6 text-ink3">加载画布…</div>;
 
   return (
     <div className="h-screen flex flex-col">

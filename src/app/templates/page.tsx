@@ -50,7 +50,7 @@ export default function Templates() {
           <option value="rejected">已驳回</option>
         </select>
       </Topbar>
-      <div className="p-6 grid md:grid-cols-[340px_1fr] gap-5">
+      <div className="p-4 md:p-6 grid md:grid-cols-[340px_1fr] gap-5 reveal">
         <div className="card p-5 h-fit">
           <div className="font-semibold mb-3">新建模板</div>
           <input className="input mb-2.5" placeholder="模板名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -69,7 +69,7 @@ export default function Templates() {
           <button className="btn btn-pri w-full mt-3" onClick={create}>提交审核</button>
         </div>
         <div className="card overflow-hidden h-fit">
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead>
               <tr><th className="th">名称</th><th className="th">类型</th><th className="th">内容</th><th className="th">状态</th><th className="th">操作</th></tr>
             </thead>
@@ -108,7 +108,7 @@ export default function Templates() {
               ))}
               {filtered.length === 0 && <tr><td className="td text-ink3" colSpan={5}>暂无模板</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </>

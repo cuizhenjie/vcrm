@@ -22,6 +22,7 @@ export default function NewCampaign() {
   // 定时
   const [scheduledAt, setScheduledAt] = useState("");
   const [quietHours, setQuietHours] = useState(true);
+  const [quietLabel, setQuietLabel] = useState("22:00–08:00");
   const [busy, setBusy] = useState(false);
   // P2-9: 分群预设
   const [presets, setPresets] = useState<any[]>([]);
@@ -32,6 +33,10 @@ export default function NewCampaign() {
     fetch("/api/templates").then((r) => r.json()).then((d) => setTpls(d.filter((t: any) => t.reportStatus === "approved")));
     fetch("/api/customers/facets").then((r) => r.json()).then(setFacets);
     fetch("/api/segment-presets").then((r) => r.json()).then(setPresets).catch(() => setPresets([]));
+    // 读取服务端真实避扰时段（客户端读不到 env，避免展示硬编码默认值）
+    fetch("/api/config").then((r) => r.json()).then((d) => {
+      if (d?.quietHours?.label) setQuietLabel(d.quietHours.label);
+    }).catch(() => {});
   }, []);
 
   const savePreset = async () => {
@@ -92,7 +97,7 @@ export default function NewCampaign() {
   return (
     <>
       <Topbar title="新建触达任务" sub="营销触达" />
-      <div className="p-6 max-w-2xl space-y-5">
+      <div className="p-4 md:p-6 max-w-2xl space-y-5 reveal">
         <div className="card p-6 space-y-4">
           <div><label className="text-sm text-ink2 block mb-1.5"><span className="text-danger">*</span> 任务名称</label>
             <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="命名任务方便区分" /></div>
@@ -208,7 +213,7 @@ export default function NewCampaign() {
           </div>
           <label className="flex items-center gap-2 text-sm text-ink2 cursor-pointer">
             <input type="checkbox" checked={quietHours} onChange={(e) => setQuietHours(e.target.checked)} />
-            避扰时段（{process.env.NEXT_PUBLIC_QUIET ?? "22:00–08:00"} 不发送，顺延次日，防投诉封号）
+            避扰时段（{quietLabel} 不发送，顺延次日，防投诉封号）
           </label>
         </div>
 

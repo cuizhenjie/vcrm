@@ -14,3 +14,7 @@ tsconfig.tsbuildinfo
 
 # OMC orchestration state
 .omc/
+
+# 工具缓存/扫描历史（不入库）
+.mimosa/
+.video_agent/

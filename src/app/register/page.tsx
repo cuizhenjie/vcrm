@@ -28,8 +28,8 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-page">
-      <div className="card p-8 w-[380px]">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="reveal-scale w-[min(400px,calc(100vw-2rem))] rounded-2xl border border-white/50 bg-white/95 backdrop-blur-xl p-8 shadow-[0_24px_70px_-20px_rgba(10,14,40,0.55)]">
         <div className="text-2xl font-bold tracking-wide mb-1"><span className="text-primary">V</span>CRM</div>
         <div className="text-sm text-ink3 mb-6">开通新租户</div>
         <input className="input mb-3" placeholder="租户标识（小写字母数字，3-32位）" value={form.slug}

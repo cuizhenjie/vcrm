@@ -21,7 +21,7 @@ export default function VideoPage() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
-  // 有进行中任务时轮询
+  // 有进行中任务时轮询（cancelled/succeeded/failed 均为终态，不再轮询）
   useEffect(() => {
     const hasPending = tasks.some((t) => t.status === "queued" || t.status === "running");
     if (hasPending && !pollRef.current) {
@@ -47,10 +47,22 @@ export default function VideoPage() {
     load();
   };
 
+  // 取消/删除任务（进行中→取消并退额；终态→标记删除）
+  const cancelTask = async (id: string) => {
+    if (!confirm("确认取消/删除该视频任务？进行中的任务将停止生成并退还额度。")) return;
+    const r = await fetch(`/api/video/${id}`, { method: "DELETE" });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(j.error || "操作失败");
+      return;
+    }
+    load();
+  };
+
   return (
     <>
       <Topbar title="营销视频生成" sub="AI 视频创作 · 火山方舟 Seedance" />
-      <div className="p-6 grid md:grid-cols-[360px_1fr] gap-5">
+      <div className="p-4 md:p-6 grid md:grid-cols-[360px_1fr] gap-5 reveal">
         <div className="card p-5 h-fit space-y-3">
           <div className="font-semibold">创作视频</div>
           <textarea
@@ -109,16 +121,28 @@ export default function VideoPage() {
                     ) : t.thumbnailUrl ? (
                       <img src={t.thumbnailUrl} className="w-full h-full object-cover" alt="" />
                     ) : (
-                      <span className="text-3xl text-gray-300">{t.status === "failed" ? "✗" : "⏳"}</span>
+                      <span className="text-3xl text-gray-300">
+                        {t.status === "failed" ? "✗" : t.status === "cancelled" ? "⊘" : "⏳"}
+                      </span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Tag s={t.status} />
                       <span className="text-xs text-ink3">{new Date(t.createdAt).toLocaleString("zh-CN")}</span>
+                      {/* 取消/删除按钮：进行中可取消，已终态可删除 */}
+                      {(t.status === "queued" || t.status === "running" || t.status === "failed" || t.status === "succeeded") && (
+                        <button
+                          onClick={() => cancelTask(t.id)}
+                          className="ml-auto text-xs text-ink3 hover:text-danger transition-colors"
+                          title={t.status === "queued" || t.status === "running" ? "取消任务" : "删除记录"}
+                        >
+                          {t.status === "queued" || t.status === "running" ? "取消" : "删除"}
+                        </button>
+                      )}
                     </div>
                     <div className="text-sm text-ink2 line-clamp-2 mb-1">{t.prompt}</div>
-                    {t.error && <div className="text-xs text-danger">错误：{t.error}</div>}
+                    {t.error && t.status !== "cancelled" && <div className="text-xs text-danger">错误：{t.error}</div>}
                     <div className="text-xs text-ink3">
                       {t.model} · {t.paramsJson ? (() => { try { const p = JSON.parse(t.paramsJson); return `${p.resolution}·${p.duration}s·${p.ratio}`; } catch { return ""; } })() : ""}
                     </div>

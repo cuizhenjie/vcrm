@@ -85,7 +85,7 @@ export default function WebhooksPage() {
       <Topbar title="Webhook 配置" sub="外部 CRM 集成 · 线索/成交/退订事件推送">
         <button className="btn btn-pri" onClick={openNew}>+ 新建</button>
       </Topbar>
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         {showForm && (
           <div className="card p-5">
             <div className="font-semibold mb-4">{editing ? "编辑 Webhook" : "新建 Webhook"}</div>
@@ -126,7 +126,7 @@ export default function WebhooksPage() {
 
         <div className="card overflow-hidden">
           <div className="font-semibold p-5 pb-3">Webhook 列表（{list.length}）</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead>
               <tr>
                 <th className="th">名称</th><th className="th">URL</th><th className="th">订阅事件</th><th className="th">状态</th><th className="th">操作</th>
@@ -161,7 +161,7 @@ export default function WebhooksPage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </>

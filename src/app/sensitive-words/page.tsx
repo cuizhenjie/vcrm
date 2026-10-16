@@ -65,7 +65,7 @@ export default function SensitiveWordsPage() {
   return (
     <>
       <Topbar title="敏感词管理" sub="内容审核词库 · 命中即拦截发送" />
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="card p-5">
           <div className="font-semibold mb-3">批量添加</div>
           <div className="flex gap-3 items-start flex-wrap">
@@ -95,7 +95,7 @@ export default function SensitiveWordsPage() {
               onChange={(e) => setFilter(e.target.value)}
             />
           </div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead>
               <tr>
                 <th className="th">敏感词</th><th className="th">分类</th><th className="th">状态</th><th className="th">操作</th>
@@ -120,7 +120,7 @@ export default function SensitiveWordsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </>

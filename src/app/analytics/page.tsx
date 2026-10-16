@@ -20,7 +20,7 @@ const logTitle = (log: any) =>
 export default function Analytics() {
   const [d, setD] = useState<any>(null);
   useEffect(() => { fetch("/api/analytics").then((r) => r.json()).then(setD); }, []);
-  if (!d) return <div className="p-6 text-ink3">加载中…</div>;
+  if (!d) return <div className="p-4 md:p-6 text-ink3">加载中…</div>;
   const { summary, days, topCampaigns, funnel = [], recentFollowLogs = [], roi } = d;
   const maxSent = Math.max(1, ...days.map((x: any) => x.sent));
   const maxFunnel = Math.max(1, ...funnel.map((x: any) => x.count));
@@ -34,7 +34,7 @@ export default function Analytics() {
   return (
     <>
       <Topbar title="数据中心" sub="组织级转化概览" />
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
           {cards.map((c) => (
             <div key={c.k} className="card p-4">

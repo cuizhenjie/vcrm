@@ -24,7 +24,7 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
   }, [load, terminal]);
   useEffect(() => { fetch("/api/templates").then((r) => r.json()).then((d) => setTpls(d.filter((t: any) => t.reportStatus === "approved"))); }, []);
   // ⚠ 所有 hooks 必须在任何 early return 之前声明，否则违反 React Hooks 顺序规则
-  if (!data?.campaign) return <div className="p-6 text-ink3">加载中…</div>;
+  if (!data?.campaign) return <div className="p-4 md:p-6 text-ink3">加载中…</div>;
   const { campaign, stats } = data;
 
   const send = async () => {
@@ -76,7 +76,7 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
           <button className="btn ml-2" onClick={stop} disabled={sending}>停止任务</button>}
         <a className="btn ml-2" href={`/api/campaigns/${params.id}/export`}>导出明细</a>
       </Topbar>
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         {campaign.status === "scheduled" && (
           <div className="card p-4 border-l-4 border-l-primary text-sm text-ink2">
             ⏰ 已排期，将于 <b>{new Date(campaign.scheduledAt).toLocaleString("zh-CN")}</b> 自动发送
@@ -264,7 +264,7 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
           </div>
         )}
         <div className="card overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="th">手机号</th><th className="th">流水号</th><th className="th">发送状态</th><th className="th">送达</th><th className="th">短链</th><th className="th">意图标签</th></tr></thead>
             <tbody>
               {campaign.recipients.map((r: any) => (
@@ -278,7 +278,7 @@ export default function CampaignDetail({ params }: { params: { id: string } }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
         <p className="text-xs text-ink3">提示：状态报告 / 上行回复通过 <code>/api/webhooks/delivery</code>、<code>/api/webhooks/mo</code> 回填；可用 curl 模拟回调测试（见 README）。</p>
       </div>

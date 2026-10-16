@@ -68,7 +68,7 @@ export default function SignaturesPage() {
   return (
     <>
       <Topbar title="短信签名管理" sub="通道报备签名 · 审核状态流转" />
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="card p-5">
           <div className="font-semibold mb-3">新增签名</div>
           <div className="flex gap-3 items-center flex-wrap">
@@ -89,7 +89,7 @@ export default function SignaturesPage() {
 
         <div className="card overflow-hidden">
           <div className="font-semibold p-5 pb-3">签名列表（{list.length}）</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead>
               <tr>
                 <th className="th">签名</th><th className="th">来源</th><th className="th">审核状态</th><th className="th">默认</th><th className="th">操作</th>
@@ -127,7 +127,7 @@ export default function SignaturesPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           {list.some((s) => s.rejectReason) && (
             <div className="px-5 py-3 border-t border-line text-xs text-ink3">
               {list.filter((s) => s.rejectReason).map((s) => (

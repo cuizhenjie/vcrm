@@ -34,7 +34,7 @@ export default function ReportsPage() {
   return (
     <>
       <Topbar title="消息回执" sub="送达状态报告 · 上行回复查看" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4 reveal">
         <div className="flex gap-2">
           <button
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "delivery" ? "bg-primary text-white" : "bg-white border border-line text-ink2 hover:border-accent"}`}
@@ -56,7 +56,7 @@ export default function ReportsPage() {
         )}
 
         <div className="card overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             {tab === "delivery" ? (
               <>
                 <thead><tr><th className="th">时间</th><th className="th">手机号</th><th className="th">状态</th></tr></thead>
@@ -93,7 +93,7 @@ export default function ReportsPage() {
                 </tbody>
               </>
             )}
-          </table>
+          </table></div>
         </div>
       </div>
     </>

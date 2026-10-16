@@ -49,7 +49,7 @@ export default function RechargePage() {
   return (
     <>
       <Topbar title="短信额度充值" sub="按量计费 · 充值即用" />
-      <div className="p-6 max-w-2xl space-y-5">
+      <div className="p-4 md:p-6 max-w-2xl space-y-5 reveal">
         <div className="card p-6">
           <div className="font-semibold mb-4">选择充值数量</div>
           <div className="grid grid-cols-5 gap-2 mb-4">

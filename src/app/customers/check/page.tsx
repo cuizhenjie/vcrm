@@ -53,10 +53,10 @@ export default function CheckPage() {
           {busyId === "all" ? "检测中…" : "检测全部待检"}
         </button>
       </Topbar>
-      <div className="p-6">
+      <div className="p-4 md:p-6 reveal">
         <div className="card overflow-hidden">
           <div className="font-semibold p-5 pb-3">批次检测（{batches.length}）</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead>
               <tr>
                 <th className="th">批次名称</th><th className="th">总数</th><th className="th">有效</th><th className="th">空号/黑名单</th><th className="th">空号率</th><th className="th">检测状态</th><th className="th">操作</th>
@@ -87,10 +87,10 @@ export default function CheckPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
         <div className="text-xs text-ink3 mt-3">
-          注：空号/停机号会自动标记为黑名单，发送时跳过。检测依赖通道能力，mock 通道按随机率模拟，联麓需配置 LIANLU_CHECK_PATH。
+          注：空号/停机号会自动标记为黑名单，发送时跳过。检测能力依赖通道：mock 按随机率模拟，联麓需配置 LIANLU_CHECK_PATH，火山引擎短信暂不提供空号检测（号码保持待检测）。
         </div>
       </div>
     </>

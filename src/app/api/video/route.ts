@@ -2,22 +2,68 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
 import { requireRole, requireActiveTenant } from "@/lib/rbac";
-import { createVideoTask } from "@/lib/ark-video";
+import { createVideoTask, listVideoTasks, isArkConfigured } from "@/lib/ark-video";
 import { videoCostCredits, reserveVideoCredit, refundVideoCredit } from "@/lib/video-billing";
 import { InsufficientCreditsError } from "@/lib/billing";
 import { smsUnitCostFen } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/video — 列出租户的视频生成任务 */
-export async function GET() {
+/** GET /api/video — 列出租户的视频生成任务
+ *  ?sync=1 时额外拉取方舟远端列表，将本地非终态任务按方舟最新状态回补（旁路任务对账）。
+ *  本地 DB 始终是权威源（保证租户隔离）；方舟仅用于补全进行中任务的最新状态。 */
+export async function GET(req: NextRequest) {
   const session = getCurrentSession();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const list = await db.videoTask.findMany({
     where: { tenantId: session.tenantId },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
+
+  // 可选：与方舟远端对账（仅当显式请求 + 方舟已配置 + 存在非终态任务时）
+  const wantSync = req.nextUrl.searchParams.get("sync") === "1";
+  const hasPending = list.some((t) => t.status === "queued" || t.status === "running");
+  if (wantSync && isArkConfigured() && hasPending) {
+    try {
+      // 用本地进行中任务的 providerTaskId 精确过滤，避免拉全量
+      const pendingIds = list
+        .filter((t) => t.providerTaskId && (t.status === "queued" || t.status === "running"))
+        .map((t) => t.providerTaskId!)
+        .slice(0, 50);
+      const remote = await listVideoTasks({ taskIds: pendingIds, pageSize: 50 });
+      if (remote.ok && remote.tasks) {
+        // 回写远端最新状态到本地（仅非终态 → 终态的推进，不回退）
+          for (const rt of remote.tasks) {
+          if (!rt.providerTaskId || !rt.status) continue;
+          if (rt.status === "queued" || rt.status === "running") continue; // 仍进行中，不回写
+          const local = list.find((t) => t.providerTaskId === rt.providerTaskId);
+          if (!local) continue;
+          const data: Record<string, unknown> = { status: rt.status };
+          if (rt.videoUrl) data.videoUrl = rt.videoUrl;
+          if (rt.thumbnailUrl) data.thumbnailUrl = rt.thumbnailUrl;
+          if (rt.tokensUsed) data.tokensUsed = rt.tokensUsed;
+          await db.videoTask.update({ where: { id: local.id }, data });
+          // 失败/取消退还（幂等）
+          if (rt.status === "failed" || rt.status === "cancelled") {
+            const params = local.paramsJson ? JSON.parse(local.paramsJson) : undefined;
+            await refundVideoCredit(session.tenantId, local.id, videoCostCredits(params));
+          }
+        }
+        // 重新查询返回最新状态
+        const refreshed = await db.videoTask.findMany({
+          where: { tenantId: session.tenantId },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        });
+        return NextResponse.json(refreshed);
+      }
+    } catch {
+      // 同步失败不影响本地列表返回（降级为纯本地）
+    }
+  }
+
   return NextResponse.json(list);
 }
 

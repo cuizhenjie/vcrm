@@ -78,7 +78,7 @@ export default function MembersPage() {
       <Topbar title="成员管理" sub="团队协作 · 角色 · 成员席位">
         <button className="btn btn-pri" onClick={() => setShowForm(!showForm)}>+ 邀请成员</button>
       </Topbar>
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         {showForm && (
           <div className="card p-5">
             <div className="font-semibold mb-4">邀请新成员</div>
@@ -102,7 +102,7 @@ export default function MembersPage() {
 
         <div className="card overflow-hidden">
           <div className="font-semibold p-5 pb-3">成员列表（{list.length}）</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead>
               <tr><th className="th">姓名</th><th className="th">邮箱</th><th className="th">角色</th><th className="th">状态</th><th className="th">操作</th></tr>
             </thead>
@@ -145,7 +145,7 @@ export default function MembersPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </>

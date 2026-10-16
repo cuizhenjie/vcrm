@@ -201,7 +201,7 @@ export default function LeadsPage() {
         <a className="btn" href={exportHref}>导出 CSV</a>
       </Topbar>
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         {counts && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
             {summary.map((c) => (

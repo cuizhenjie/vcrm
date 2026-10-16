@@ -14,7 +14,7 @@ export default function HealthPage() {
   return (
     <>
       <Topbar title="系统健康" sub="服务状态 · 通道自检 · 联调清单" />
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5 reveal">
         {/* 应用健康 */}
         <div className="card p-5">
           <div className="font-semibold mb-3">应用状态</div>
