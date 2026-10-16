@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 
 /**
  * 支付宝签名/验签闭环测试。
- * 用 Node 临时生成 RSA 密钥对，模拟"应用私钥签名 + 支付宝公钥验签"。
+ * 用 Node 临时生成 RSA-3072 密钥对，模拟"应用私钥签名 + 支付宝公钥验签"。
  * alipaySign/alipayVerify 每次调用都读 env，故设置 env 后直接调用即可。
  */
 describe("支付宝签名验签", () => {
@@ -14,7 +14,7 @@ describe("支付宝签名验签", () => {
 
   beforeAll(() => {
     const { privateKey: priv, publicKey: pub } = crypto.generateKeyPairSync("rsa", {
-      modulusLength: 2048,
+      modulusLength: 3072,
       publicKeyEncoding: { type: "spki", format: "pem" },
       privateKeyEncoding: { type: "pkcs8", format: "pem" },
     });

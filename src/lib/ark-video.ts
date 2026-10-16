@@ -4,9 +4,11 @@
  * 文档：https://www.volcengine.com/docs/82379/1520757
  *
  * 调用模式（异步任务）：
- *   1. POST /api/v3/contents/generations/tasks 创建任务 → 返回 { id: "cgt-xxx" }
- *   2. GET  /api/v3/contents/generations/tasks/{id} 轮询 → status: queued/running/succeeded/failed
- *   3. succeeded 后 content.video_url（24h 失效，调用方需转存）
+ *   1. POST   /api/v3/contents/generations/tasks            创建任务 → 返回 { id: "cgt-xxx" }
+ *   2. GET    /api/v3/contents/generations/tasks/{id}        轮询 → status: queued/running/succeeded/failed/cancelled
+ *   3. GET    /api/v3/contents/generations/tasks             查询任务列表（?page_num=&page_size=&filter.*）
+ *   4. DELETE /api/v3/contents/generations/tasks/{id}        取消或删除任务
+ *   succeeded 后 content.video_url（24h 失效，调用方需转存）
  *
  * 鉴权：Bearer ARK_API_KEY（数据面 API，无需 AK/SK 签名）。
  *
@@ -16,6 +18,18 @@
 const ARK_BASE = () => (process.env.ARK_BASE_URL || "https://ark.cn-beijing.volces.com").replace(/\/+$/, "");
 const ARK_KEY = () => process.env.ARK_API_KEY?.trim();
 const ARK_MODEL = () => process.env.ARK_VIDEO_MODEL || "doubao-seedance-2-0-260128";
+
+/**
+ * 统一出站请求入口：先经 SSRF 防护校验目标为公网 http(s) 地址。
+ * ARK_BASE_URL 来自环境变量，若被改成内网/云元数据地址将在此被拒绝。
+ */
+async function arkFetch(path: string, init: RequestInit): Promise<Response> {
+  const url = `${ARK_BASE()}${path}`;
+  const { validatePublicUrl } = await import("./ssrf-guard");
+  const err = validatePublicUrl(url);
+  if (err) throw new Error(`ARK 请求地址校验失败：${err}`);
+  return fetch(url, init);
+}
 
 export interface VideoParams {
   resolution?: string; // 480p | 720p | 1080p | 4k
@@ -34,7 +48,7 @@ export interface CreateVideoInput {
 export interface VideoTaskResult {
   ok: boolean;
   providerTaskId?: string;
-  status?: "queued" | "running" | "succeeded" | "failed";
+  status?: "queued" | "running" | "succeeded" | "failed" | "cancelled";
   videoUrl?: string;
   thumbnailUrl?: string;
   error?: string;
@@ -70,7 +84,7 @@ export async function createVideoTask(input: CreateVideoInput): Promise<VideoTas
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
-    const res = await fetch(`${ARK_BASE()}/api/v3/contents/generations/tasks`, {
+    const res = await arkFetch("/api/v3/contents/generations/tasks", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -97,7 +111,7 @@ export async function queryVideoTask(providerTaskId: string): Promise<VideoTaskR
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
-    const res = await fetch(`${ARK_BASE()}/api/v3/contents/generations/tasks/${providerTaskId}`, {
+    const res = await arkFetch(`/api/v3/contents/generations/tasks/${encodeURIComponent(providerTaskId)}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${ARK_KEY()}` },
       signal: controller.signal,
@@ -124,11 +138,88 @@ export async function queryVideoTask(providerTaskId: string): Promise<VideoTaskR
   }
 }
 
-/** 方舟状态 → 标准状态（兼容多种返回值）。 */
-function mapStatus(s: string): "queued" | "running" | "succeeded" | "failed" {
+/** 取消或删除视频任务（DELETE）。已终态的任务删除返回 ok，进行中的任务会被取消。
+ *  调用方应在本地同步标记 cancelled 并退还额度。 */
+export async function cancelVideoTask(providerTaskId: string): Promise<VideoTaskResult> {
+  if (!isArkConfigured()) return { ok: false, error: "ARK_API_KEY 未配置" };
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const res = await arkFetch(`/api/v3/contents/generations/tasks/${encodeURIComponent(providerTaskId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${ARK_KEY()}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    // 204 No Content 或 200 均视为成功
+    if (res.status === 204) return { ok: true, providerTaskId, status: "cancelled" };
+    const raw = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: raw.error?.message ?? `HTTP_${res.status}`, raw };
+    }
+    return { ok: true, providerTaskId, status: "cancelled", raw };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** 查询方舟任务列表。用于同步远端历史任务 / 旁路创建的任务。
+ *  返回标准化任务数组（含 providerTaskId/status/videoUrl），total 为方舟侧总数。 */
+export async function listVideoTasks(opts?: {
+  pageNum?: number;
+  pageSize?: number;
+  status?: string;
+  taskIds?: string[];
+  model?: string;
+}): Promise<{ ok: boolean; tasks?: VideoTaskResult[]; total?: number; raw?: unknown; error?: string }> {
+  if (!isArkConfigured()) return { ok: false, error: "ARK_API_KEY 未配置" };
+
+  // 组装查询参数（filter.* 为方舟约定的嵌套过滤字段）
+  const params = new URLSearchParams();
+  params.set("page_num", String(opts?.pageNum ?? 1));
+  params.set("page_size", String(opts?.pageSize ?? 20));
+  if (opts?.status) params.set("filter.status", opts.status);
+  if (opts?.model) params.set("filter.model", opts.model);
+  if (opts?.taskIds && opts.taskIds.length) params.set("filter.task_ids", opts.taskIds.join(","));
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const res = await arkFetch(`/api/v3/contents/generations/tasks?${params.toString()}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${ARK_KEY()}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    const raw = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: raw.error?.message ?? `HTTP_${res.status}`, raw };
+    }
+    // 方舟列表返回 { total, items: [...] }，逐项标准化
+    const items: any[] = Array.isArray(raw.items) ? raw.items : Array.isArray(raw.data) ? raw.data : [];
+    const tasks: VideoTaskResult[] = items.map((it) => ({
+      ok: true,
+      providerTaskId: it.id,
+      status: mapStatus(it.status),
+      videoUrl: it.content?.video_url,
+      thumbnailUrl: it.content?.cover_image_url ?? it.content?.thumbnail_url,
+      tokensUsed: it.usage?.total_tokens,
+      raw: it,
+    }));
+    return { ok: true, tasks, total: typeof raw.total === "number" ? raw.total : tasks.length, raw };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** 方舟状态 → 标准状态（兼容多种返回值）。
+ *  cancelled 保留独立状态（区分用户主动取消与生成失败，前端展示与计费退还逻辑不同）。 */
+function mapStatus(s: string): "queued" | "running" | "succeeded" | "failed" | "cancelled" {
   const v = String(s ?? "").toLowerCase();
   if (v === "succeeded" || v === "success") return "succeeded";
-  if (v === "failed" || v === "error" || v === "cancelled") return "failed";
+  if (v === "cancelled" || v === "canceled") return "cancelled";
+  if (v === "failed" || v === "error") return "failed";
   if (v === "running" || v === "processing") return "running";
   return "queued"; // queued/pending/等
 }

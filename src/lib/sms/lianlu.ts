@@ -125,6 +125,10 @@ const compactParams = (params: Params): Params => {
 // ---- HTTP -----------------------------------------------------------------
 
 const postJson = async (url: string, body: Params): Promise<HttpResponse> => {
+  // SSRF 防护：LIANLU_BASE_URL 来自环境变量，出站前校验必须指向公网地址
+  const { validatePublicUrl } = await import("../ssrf-guard");
+  const urlErr = validatePublicUrl(url);
+  if (urlErr) return { httpOk: false, status: 0, raw: { error: `联麓请求地址校验失败：${urlErr}` } };
   const timeoutMs = numberEnv("LIANLU_TIMEOUT_MS", 10000);
   const controller = new AbortController();
   const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : undefined;

@@ -10,7 +10,8 @@ export const MockPayment: PaymentProvider = {
 
   async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
     // mock：payUrl 指向本站 mock 支付完成页（前端跳转后调 callback）
-    const payUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/pay/mock?out=${input.outTradeNo}`;
+    // 金额随 URL 传递（amountFen），支付页回传后由回调做金额校验，保证闭环完整
+    const payUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/pay/mock?out=${input.outTradeNo}&amount=${input.amountFen}`;
     return { ok: true, payUrl, raw: { mock: true } };
   },
 

@@ -21,6 +21,9 @@ export async function register() {
         if (process.env.SMS_PROVIDER === "lianlu" && !process.env.LIANLU_WEBHOOK_SECRET) {
           throw new Error("[FATAL] SMS_PROVIDER=lianlu 但 LIANLU_WEBHOOK_SECRET 未设置，生产环境禁止裸奔回调");
         }
+        if (process.env.SMS_PROVIDER === "volcengine" && !process.env.SMS_VOLC_WEBHOOK_SECRET) {
+          throw new Error("[FATAL] SMS_PROVIDER=volcengine 但 SMS_VOLC_WEBHOOK_SECRET 未设置，生产环境禁止裸奔回调");
+        }
       }
       // eslint-disable-next-line no-console
       console.log("[startup] AUTH_SECRET 校验通过");

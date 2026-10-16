@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
 import type { PaymentProvider, CreateOrderInput, CreateOrderResult, VerifyResult } from "./types";
 
 /**
@@ -8,9 +9,15 @@ import type { PaymentProvider, CreateOrderInput, CreateOrderResult, VerifyResult
  *   PAYMENT_WECHAT_APP_ID        公众号/小程序 AppID
  *   PAYMENT_WECHAT_MCH_ID        商户号
  *   PAYMENT_WECHAT_API_V3_KEY    V3 API 密钥（32 字符，用于解密回调证书/资源）
- *   PAYMENT_WECHAT_PRIVATE_KEY   商户 API 私钥（PEM，含 BEGIN/END）
+ *   PAYMENT_WECHAT_PRIVATE_KEY   商户 API 私钥（PEM 内容，含 BEGIN/END）
  *   PAYMENT_WECHAT_CERT_SERIAL   商户证书序列号
  *   PAYMENT_WECHAT_PLATFORM_CERT 平台公钥 PEM（用于验签回调；可定期从平台下载更新）
+ *
+ * 也支持文件路径（私钥/平台证书通常以 .pem 文件存放）：
+ *   PAYMENT_WECHAT_PRIVATE_KEY_PATH   商户私钥 PEM 文件路径（优先于 PRIVATE_KEY 内联值）
+ *   PAYMENT_WECHAT_PLATFORM_CERT_PATH 平台公钥 PEM 文件路径（优先于 PLATFORM_CERT 内联值）
+ * 新版微信商户采用「微信支付公钥」模式（无平台证书）：
+ *   PAYMENT_WECHAT_PLATFORM_PUBLIC_KEY 微信支付公钥 PEM 内容（与平台证书同用于验签回调）
  *
  * 流程：
  *   下单：POST /v3/pay/transactions/native，body 用商户私钥 RSA-SHA256 签名放 Authorization 头。
@@ -23,9 +30,24 @@ import type { PaymentProvider, CreateOrderInput, CreateOrderResult, VerifyResult
 const APP_ID = () => process.env.PAYMENT_WECHAT_APP_ID?.trim();
 const MCH_ID = () => process.env.PAYMENT_WECHAT_MCH_ID?.trim();
 const API_V3_KEY = () => process.env.PAYMENT_WECHAT_API_V3_KEY?.trim();
-const PRIVATE_KEY = () => process.env.PAYMENT_WECHAT_PRIVATE_KEY?.trim();
 const CERT_SERIAL = () => process.env.PAYMENT_WECHAT_CERT_SERIAL?.trim();
-const PLATFORM_CERT = () => process.env.PAYMENT_WECHAT_PLATFORM_CERT?.trim();
+
+/** 读取 PEM 内容：优先文件路径（*_PATH），回落内联 env 值；都无则空串。 */
+const readPem = (pathKey: string, inlineKey: string): string => {
+  const p = process.env[pathKey]?.trim();
+  if (p) {
+    try {
+      return fs.readFileSync(p, "utf8").trim();
+    } catch {
+      return ""; // 文件不存在 → 视为未配置（isConfigured 会因空值拒绝）
+    }
+  }
+  return process.env[inlineKey]?.trim() ?? "";
+};
+const PRIVATE_KEY = () => readPem("PAYMENT_WECHAT_PRIVATE_KEY_PATH", "PAYMENT_WECHAT_PRIVATE_KEY");
+const PLATFORM_CERT = () =>
+  readPem("PAYMENT_WECHAT_PLATFORM_CERT_PATH", "PAYMENT_WECHAT_PLATFORM_CERT") ||
+  readPem("", "PAYMENT_WECHAT_PLATFORM_PUBLIC_KEY"); // 新版「微信支付公钥」模式兼容
 
 const API_BASE = "https://api.mch.weixin.qq.com";
 
@@ -136,7 +158,8 @@ function aesGcmDecrypt(ciphertextB64: string, associatedData: string, nonce: str
   const ciphertext = Buffer.from(ciphertextB64, "base64");
   const authTag = ciphertext.subarray(ciphertext.length - 16);
   const encrypted = ciphertext.subarray(0, ciphertext.length - 16);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(nonce, "utf-8"));
+  // 微信回调 nonce 为 base64 编码的 12 字节随机数，需 base64 解码后作为 GCM IV（官方文档格式）
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(nonce, "base64"));
   decipher.setAuthTag(authTag);
   if (associatedData) decipher.setAAD(Buffer.from(associatedData, "utf-8"));
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);

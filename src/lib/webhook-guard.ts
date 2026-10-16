@@ -2,17 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyLianluSignature } from "./auth";
 
 /**
- * 联麓 Webhook 入口统一守卫：
- * - 生产环境：LIANLU_WEBHOOK_SECRET 必须配置且必须校验通过，否则拒绝。
+ * 短信 Webhook 入口统一守卫（delivery / mo 共用）：
+ * 按当前 SMS_PROVIDER 选择对应通道的回调签名密钥（lianlu → LIANLU_WEBHOOK_SECRET，
+ * volcengine → SMS_VOLC_WEBHOOK_SECRET），统一按 HMAC-SHA256 over raw body 校验。
+ *
+ * - 生产环境：对应 secret 必须配置且必须校验通过，否则拒绝。
  * - 开发环境（NODE_ENV !== production）：允许未配置 secret 时放行（便于 mock 联调），
  *   但只要配置了 secret 就必须校验通过（防止 dev 环境误暴露成可伪造入口）。
  *
  * 用法：
- *   const guard = requireWebhookSignature(req);
+ *   const guard = requireWebhookSignature(req, rawBody);
  *   if (guard) return guard; // 401
  */
 export function requireWebhookSignature(req: NextRequest, rawBody: string): NextResponse | null {
-  const appSecret = process.env.LIANLU_WEBHOOK_SECRET ?? "";
+  const provider = process.env.SMS_PROVIDER ?? "mock";
+  const appSecret =
+    provider === "volcengine"
+      ? (process.env.SMS_VOLC_WEBHOOK_SECRET ?? "")
+      : (process.env.LIANLU_WEBHOOK_SECRET ?? "");
   const isProd = process.env.NODE_ENV === "production";
 
   // 生产环境：secret 必须配置；未配置视为配置错误，直接拒绝（fail-closed）
@@ -22,7 +29,7 @@ export function requireWebhookSignature(req: NextRequest, rawBody: string): Next
   // 未配置 secret 仅在非生产放行（dev/mock 联调）
   if (!appSecret) return null;
 
-  const sig = req.headers.get("x-lianlu-signature");
+  const sig = req.headers.get("x-sms-signature") ?? req.headers.get("x-lianlu-signature");
   if (!verifyLianluSignature(rawBody, sig, appSecret)) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
