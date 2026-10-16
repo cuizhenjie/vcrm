@@ -111,8 +111,8 @@ export default function VideoPage() {
           {tasks.length === 0 ? (
             <div className="card p-10 text-center text-ink3">还没有视频任务，在左侧输入描述开始创作</div>
           ) : (
-            tasks.map((t) => (
-              <div key={t.id} className="card overflow-hidden">
+            tasks.map((t, i) => (
+              <div key={t.id} className="card overflow-hidden reveal" style={{ "--d": `${i * 50}ms` } as React.CSSProperties}>
                 <div className="flex gap-4 p-4">
                   {/* 视频预览 / 缩略图 / 占位 */}
                   <div className="w-40 h-24 shrink-0 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">

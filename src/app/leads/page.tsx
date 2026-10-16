@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Topbar, Tag } from "@/components/ui";
+import TiltCard from "@/components/motion/TiltCard";
+import CountUp from "@/components/motion/CountUp";
 
 type FollowStatus = "new" | "following" | "won" | "lost";
 
@@ -204,12 +206,16 @@ export default function LeadsPage() {
       <div className="p-4 md:p-6 space-y-5 reveal">
         {counts && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
-            {summary.map((c) => (
-              <div key={c.k} className="card p-4">
-                <div className="text-sm text-ink2 mb-2">{c.k}</div>
-                <div className={`text-2xl font-bold leading-none ${c.cls}`}>{c.v}</div>
-                <div className="text-xs text-ink3 mt-1.5">{c.s}</div>
-              </div>
+            {summary.map((c, i) => (
+              <TiltCard key={c.k} className="reveal" style={{ "--d": `${i * 60}ms` } as React.CSSProperties}>
+                <div className="card card-interactive p-4 h-full">
+                  <div className="text-sm text-ink2 mb-2">{c.k}</div>
+                  <div className={`text-2xl font-bold leading-none tabular-nums ${c.cls}`}>
+                    <CountUp to={c.v} />
+                  </div>
+                  <div className="text-xs text-ink3 mt-1.5">{c.s}</div>
+                </div>
+              </TiltCard>
             ))}
           </div>
         )}

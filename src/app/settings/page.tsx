@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Topbar, Tag } from "@/components/ui";
+import TiltCard from "@/components/motion/TiltCard";
+import CountUp from "@/components/motion/CountUp";
 
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("zh-CN") : "—");
 const fen = (n?: number | null) => n == null ? "—" : `¥${(n / 100).toFixed(2)}`;
@@ -23,26 +25,36 @@ export default function SettingsPage() {
       </Topbar>
       <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-          <div className="card p-4">
-            <div className="text-sm text-ink2 mb-2">租户</div>
-            <div className="text-2xl font-bold text-primary leading-none">{data.tenant.name}</div>
-            <div className="text-xs text-ink3 mt-1.5">{data.tenant.slug}</div>
-          </div>
-          <div className="card p-4">
-            <div className="text-sm text-ink2 mb-2">短信余额</div>
-            <div className="text-2xl font-bold text-ok leading-none">{data.balance}</div>
-            <div className="text-xs text-ink3 mt-1.5">发送前实时预扣</div>
-          </div>
-          <div className="card p-4">
-            <div className="text-sm text-ink2 mb-2">当前套餐</div>
-            <div className="text-2xl font-bold text-primary leading-none">{plan?.name ?? "—"}</div>
-            <div className="text-xs text-ink3 mt-1.5">含 {plan?.smsIncluded ?? 0} 条</div>
-          </div>
-          <div className="card p-4">
-            <div className="text-sm text-ink2 mb-2">订阅状态</div>
-            <div className="text-2xl font-bold text-primary leading-none">{data.subscription?.status ?? "—"}</div>
-            <div className="text-xs text-ink3 mt-1.5">单价 {fen(plan?.unitPriceFen)}/条</div>
-          </div>
+          <TiltCard className="reveal">
+            <div className="card card-interactive p-4 h-full">
+              <div className="text-sm text-ink2 mb-2">租户</div>
+              <div className="text-2xl font-bold text-primary leading-none">{data.tenant.name}</div>
+              <div className="text-xs text-ink3 mt-1.5">{data.tenant.slug}</div>
+            </div>
+          </TiltCard>
+          <TiltCard className="reveal" style={{ "--d": "70ms" } as React.CSSProperties}>
+            <div className="card card-interactive p-4 h-full">
+              <div className="text-sm text-ink2 mb-2">短信余额</div>
+              <div className="text-2xl font-bold text-ok leading-none tabular-nums">
+                <CountUp to={data.balance} />
+              </div>
+              <div className="text-xs text-ink3 mt-1.5">发送前实时预扣</div>
+            </div>
+          </TiltCard>
+          <TiltCard className="reveal" style={{ "--d": "140ms" } as React.CSSProperties}>
+            <div className="card card-interactive p-4 h-full">
+              <div className="text-sm text-ink2 mb-2">当前套餐</div>
+              <div className="text-2xl font-bold text-primary leading-none">{plan?.name ?? "—"}</div>
+              <div className="text-xs text-ink3 mt-1.5">含 {plan?.smsIncluded ?? 0} 条</div>
+            </div>
+          </TiltCard>
+          <TiltCard className="reveal" style={{ "--d": "210ms" } as React.CSSProperties}>
+            <div className="card card-interactive p-4 h-full">
+              <div className="text-sm text-ink2 mb-2">订阅状态</div>
+              <div className="text-2xl font-bold text-primary leading-none">{data.subscription?.status ?? "—"}</div>
+              <div className="text-xs text-ink3 mt-1.5">单价 {fen(plan?.unitPriceFen)}/条</div>
+            </div>
+          </TiltCard>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-5">

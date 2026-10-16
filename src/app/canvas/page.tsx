@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Topbar } from "@/components/ui";
+import TiltCard from "@/components/motion/TiltCard";
 
 export default function CanvasListPage() {
   const [list, setList] = useState<any[]>([]);
@@ -43,15 +44,17 @@ export default function CanvasListPage() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {list.map((c) => (
-              <div key={c.id} className="card p-5 hover:shadow-md transition cursor-pointer group">
-                <Link href={`/canvas/${c.id}`}>
-                  <div className="text-3xl mb-2">🎨</div>
-                  <div className="font-medium mb-1 group-hover:text-primary">{c.name}</div>
-                  <div className="text-xs text-ink3">{new Date(c.updatedAt).toLocaleString("zh-CN")}</div>
-                </Link>
-                <button className="text-xs text-danger hover:underline mt-2" onClick={() => del(c.id)}>删除</button>
-              </div>
+            {list.map((c, i) => (
+              <TiltCard key={c.id} className="reveal" style={{ "--d": `${i * 70}ms` } as React.CSSProperties}>
+                <div className="card card-interactive p-5 h-full cursor-pointer group">
+                  <Link href={`/canvas/${c.id}`}>
+                    <div className="text-3xl mb-2">🎨</div>
+                    <div className="font-medium mb-1 group-hover:text-primary transition-colors">{c.name}</div>
+                    <div className="text-xs text-ink3">{new Date(c.updatedAt).toLocaleString("zh-CN")}</div>
+                  </Link>
+                  <button className="text-xs text-danger hover:underline mt-2" onClick={() => del(c.id)}>删除</button>
+                </div>
+              </TiltCard>
             ))}
           </div>
         )}

@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { Topbar } from "@/components/ui";
 import Link from "next/link";
+import TiltCard from "@/components/motion/TiltCard";
+import CountUp from "@/components/motion/CountUp";
 
 const FOLLOW_LABELS: Record<string, string> = { new: "待跟进", following: "跟进中", won: "已成交", lost: "已流失" };
 const pct = (n: number) => Math.round(n * 100) + "%";
@@ -36,46 +38,62 @@ export default function Analytics() {
       <Topbar title="数据中心" sub="组织级转化概览" />
       <div className="p-4 md:p-6 space-y-5 reveal">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
-          {cards.map((c) => (
-            <div key={c.k} className="card p-4">
-              <div className="text-sm text-ink2 mb-2">{c.k}</div>
-              <div className="text-2xl font-bold text-primary leading-none">{c.v}</div>
-            </div>
+          {cards.map((c, i) => (
+            <TiltCard key={c.k} className="reveal" style={{ "--d": `${i * 60}ms` } as React.CSSProperties}>
+              <div className="card card-interactive p-4 h-full">
+                <div className="text-sm text-ink2 mb-2">{c.k}</div>
+                <div className="text-2xl font-bold stat-num leading-none tabular-nums">
+                  {typeof c.v === "number" ? <CountUp to={c.v} /> : c.v}
+                </div>
+              </div>
+            </TiltCard>
           ))}
         </div>
 
         {roi && (
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3.5">
-            <div className="card p-4">
-              <div className="text-sm text-ink2 mb-2">成交营收</div>
-              <div className="text-2xl font-bold text-ok leading-none">{money(roi.revenue)}</div>
-              <div className="text-xs text-ink3 mt-1.5">成交 {roi.wonCount} 单</div>
-            </div>
-            <div className="card p-4">
-              <div className="text-sm text-ink2 mb-2">短信成本</div>
-              <div className="text-2xl font-bold text-primary leading-none">{money(roi.cost)}</div>
-              <div className="text-xs text-ink3 mt-1.5">单价 {money(roi.unitCost)}/条</div>
-            </div>
-            <div className="card p-4">
-              <div className="text-sm text-ink2 mb-2">利润</div>
-              <div className={`text-2xl font-bold leading-none ${roi.profit >= 0 ? "text-ok" : "text-danger"}`}>{signedMoney(roi.profit)}</div>
-              <div className="text-xs text-ink3 mt-1.5">营收 − 成本</div>
-            </div>
-            <div className="card p-4">
-              <div className="text-sm text-ink2 mb-2">ROI</div>
-              <div className={`text-2xl font-bold leading-none ${roi.roi == null || roi.roi >= 0 ? "text-primary" : "text-danger"}`}>{ratioPct(roi.roi)}</div>
-              <div className="text-xs text-ink3 mt-1.5">ROAS {multiple(roi.roas)}</div>
-            </div>
-            <div className="card p-4">
-              <div className="text-sm text-ink2 mb-2">客单价</div>
-              <div className="text-2xl font-bold text-primary leading-none">{money(roi.avgDeal)}</div>
-              <div className="text-xs text-ink3 mt-1.5">营收 / 成交</div>
-            </div>
-            <div className="card p-4">
-              <div className="text-sm text-ink2 mb-2">获客成本</div>
-              <div className="text-2xl font-bold text-primary leading-none">{money(roi.cac)}</div>
-              <div className="text-xs text-ink3 mt-1.5">成本 / 成交</div>
-            </div>
+            <TiltCard className="reveal" style={{ "--d": "0ms" } as React.CSSProperties}>
+              <div className="card card-interactive p-4 h-full">
+                <div className="text-sm text-ink2 mb-2">成交营收</div>
+                <div className="text-2xl font-bold text-ok leading-none">{money(roi.revenue)}</div>
+                <div className="text-xs text-ink3 mt-1.5">成交 {roi.wonCount} 单</div>
+              </div>
+            </TiltCard>
+            <TiltCard className="reveal" style={{ "--d": "60ms" } as React.CSSProperties}>
+              <div className="card card-interactive p-4 h-full">
+                <div className="text-sm text-ink2 mb-2">短信成本</div>
+                <div className="text-2xl font-bold text-primary leading-none">{money(roi.cost)}</div>
+                <div className="text-xs text-ink3 mt-1.5">单价 {money(roi.unitCost)}/条</div>
+              </div>
+            </TiltCard>
+            <TiltCard className="reveal" style={{ "--d": "120ms" } as React.CSSProperties}>
+              <div className="card card-interactive p-4 h-full">
+                <div className="text-sm text-ink2 mb-2">利润</div>
+                <div className={`text-2xl font-bold leading-none ${roi.profit >= 0 ? "text-ok" : "text-danger"}`}>{signedMoney(roi.profit)}</div>
+                <div className="text-xs text-ink3 mt-1.5">营收 − 成本</div>
+              </div>
+            </TiltCard>
+            <TiltCard className="reveal" style={{ "--d": "180ms" } as React.CSSProperties}>
+              <div className="card card-interactive p-4 h-full">
+                <div className="text-sm text-ink2 mb-2">ROI</div>
+                <div className={`text-2xl font-bold leading-none ${roi.roi == null || roi.roi >= 0 ? "text-primary" : "text-danger"}`}>{ratioPct(roi.roi)}</div>
+                <div className="text-xs text-ink3 mt-1.5">ROAS {multiple(roi.roas)}</div>
+              </div>
+            </TiltCard>
+            <TiltCard className="reveal" style={{ "--d": "240ms" } as React.CSSProperties}>
+              <div className="card card-interactive p-4 h-full">
+                <div className="text-sm text-ink2 mb-2">客单价</div>
+                <div className="text-2xl font-bold text-primary leading-none">{money(roi.avgDeal)}</div>
+                <div className="text-xs text-ink3 mt-1.5">营收 / 成交</div>
+              </div>
+            </TiltCard>
+            <TiltCard className="reveal" style={{ "--d": "300ms" } as React.CSSProperties}>
+              <div className="card card-interactive p-4 h-full">
+                <div className="text-sm text-ink2 mb-2">获客成本</div>
+                <div className="text-2xl font-bold text-primary leading-none">{money(roi.cac)}</div>
+                <div className="text-xs text-ink3 mt-1.5">成本 / 成交</div>
+              </div>
+            </TiltCard>
           </div>
         )}
 
