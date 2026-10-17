@@ -29,6 +29,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <Link href="/landing" className="reveal-scale absolute top-5 left-5 text-xs text-white/60 hover:text-white transition-colors z-10">← 返回官网</Link>
       <div className="reveal-scale w-[min(400px,calc(100vw-2rem))] rounded-2xl border border-white/50 bg-white/95 backdrop-blur-xl p-8 shadow-[0_24px_70px_-20px_rgba(10,14,40,0.55)]">
         <div className="text-2xl font-bold tracking-wide mb-1"><span className="text-primary">V</span>CRM</div>
         <div className="text-sm text-ink3 mb-6">开通新租户</div>

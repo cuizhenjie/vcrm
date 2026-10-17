@@ -29,7 +29,7 @@ export const NAV_TOGGLE = "vcrm:nav-toggle";
 export default function Sidebar() {
   const path = usePathname();
   const [open, setOpen] = useState(false); // 移动端抽屉
-  const standalone = !!path && ["/login", "/register", "/pay/mock"].some((p) => path.startsWith(p));
+  const standalone = !!path && ["/login", "/register", "/pay/mock", "/landing"].some((p) => path.startsWith(p));
 
   // 抽屉开合：监听 Topbar 事件；路由切换/Escape 关闭；开启时锁定背景滚动
   useEffect(() => {

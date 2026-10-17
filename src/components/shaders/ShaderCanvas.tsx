@@ -126,7 +126,70 @@ void main() {
 }
 `;
 
-const FRAGS: Record<string, string> = { silk: SILK_FRAG, nebula: NEBULA_FRAG };
+/* 极光帷幕 —— 产品宣传页 hero 专用：深空底色上青/紫/品红三色流光，更绚丽动感 */
+const AURORA_FRAG = `
+precision mediump float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_mouse;
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.55;
+  for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.05 + vec2(4.7, 2.1); a *= 0.5; }
+  return v;
+}
+
+/* 单条极光帷幕：竖向波纹随时间扫动，fbm 使边缘撕开成丝缕 */
+float curtain(vec2 q, float phase, float freq, float t) {
+  float wave = sin(q.x * freq + phase) * 0.5 + 0.5;
+  float body = smoothstep(0.9, 0.0, abs(q.y - (0.30 + wave * 0.28 + fbm(q * vec2(1.8, 3.0) + t) * 0.22)));
+  return body * (0.55 + 0.45 * fbm(q * vec2(3.5, 6.0) - t));
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 par = (u_mouse - 0.5) * 0.22;
+  vec2 p = uv * vec2(u_res.x / u_res.y, 1.0) + par;
+  float t = u_time * 0.09;
+
+  vec3 base = mix(vec3(0.027, 0.035, 0.090), vec3(0.055, 0.075, 0.170), uv.y); // 深空底
+
+  float c1 = curtain(p, t * 1.4, 5.2, t);
+  float c2 = curtain(p + vec2(0.33, 0.06), t * -1.1 + 2.1, 4.1, t);
+  float c3 = curtain(p + vec2(-0.28, 0.12), t * 0.8 + 4.2, 6.3, t);
+
+  vec3 teal    = vec3(0.100, 0.850, 0.780);
+  vec3 violet  = vec3(0.520, 0.320, 1.000);
+  vec3 magenta = vec3(1.000, 0.340, 0.720);
+
+  vec3 col = base;
+  col += teal    * c1 * 0.42 * smoothstep(0.05, 0.75, uv.y);
+  col += violet  * c2 * 0.38 * smoothstep(0.02, 0.70, uv.y);
+  col += magenta * c3 * 0.26 * smoothstep(0.00, 0.60, uv.y);
+
+  // 顶部辉光汇聚（标题区）
+  col += vec3(0.10, 0.16, 0.38) * pow(1.0 - uv.y, 2.2) * (0.5 + c1 * 0.5);
+
+  // 星点两层视差
+  vec2 sp = uv * u_res / 3.0;
+  float star = step(0.9982, hash(floor(sp + t * 5.0))) + step(0.9990, hash(floor(sp * 1.6 - t * 7.0))) * 0.7;
+  col += vec3(star) * 0.30;
+
+  // 底部渐隐衔接下一区块
+  col *= smoothstep(0.0, 0.08, uv.y);
+  col += (hash(gl_FragCoord.xy) - 0.5) * 0.008;
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+const FRAGS: Record<string, string> = { silk: SILK_FRAG, nebula: NEBULA_FRAG, aurora: AURORA_FRAG };
 
 function compile(gl: WebGLRenderingContext, type: number, src: string) {
   const s = gl.createShader(type)!;
@@ -145,7 +208,7 @@ export default function ShaderCanvas({
   className = "",
   speed = 1,
 }: {
-  variant?: "silk" | "nebula";
+  variant?: "silk" | "nebula" | "aurora";
   className?: string;
   speed?: number;
 }) {
